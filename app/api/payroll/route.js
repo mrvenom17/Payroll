@@ -15,6 +15,7 @@ export async function GET(request) {
 
     const records = db.prepare(`
       SELECT p.*, e.full_name, e.employee_code, e.designation,
+             e.uan, e.pf_number, e.esic_number, e.pan_number,
              d.name as department_name
       FROM payroll p
       JOIN employees e ON p.employee_id = e.id

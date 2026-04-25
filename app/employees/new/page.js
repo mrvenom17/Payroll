@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
+import { PRESET_DESIGNATIONS } from '@/lib/designations';
 
 export default function NewEmployeePage() {
   const router = useRouter();
@@ -215,7 +216,17 @@ export default function NewEmployeePage() {
                 </div>
                 <div className="form-group">
                   <label className="form-label form-label-required">Designation</label>
-                  <input className="form-input" placeholder="e.g., Area Sales Manager" value={form.designation} onChange={e => u('designation', e.target.value)} required />
+                  <input
+                    className="form-input"
+                    list="preset-designations"
+                    placeholder="Start typing or pick from list…"
+                    value={form.designation}
+                    onChange={e => u('designation', e.target.value)}
+                    required
+                  />
+                  <datalist id="preset-designations">
+                    {PRESET_DESIGNATIONS.map(d => <option key={d} value={d} />)}
+                  </datalist>
                 </div>
               </div>
               <div className="form-row-3">

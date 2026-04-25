@@ -87,13 +87,14 @@ export default function PfEsicReportPage() {
             <div className="card-header"><span className="card-title">🏛️ Provident Fund Report</span><span className="badge badge-info">{pfRecords.length} employees</span></div>
             <div className="card-body" style={{ padding: 0 }}>
               <table>
-                <thead><tr><th>Sl</th><th>Employee</th><th>UAN</th><th style={{ textAlign: 'right' }}>PF Wages</th><th style={{ textAlign: 'right' }}>Employee PF (12%)</th><th style={{ textAlign: 'right' }}>Employer PF (12%)</th><th style={{ textAlign: 'right' }}>Total</th></tr></thead>
+                <thead><tr><th>Sl</th><th>Employee</th><th>UAN</th><th>PF No.</th><th style={{ textAlign: 'right' }}>PF Wages</th><th style={{ textAlign: 'right' }}>Employee PF (12%)</th><th style={{ textAlign: 'right' }}>Employer PF (12%)</th><th style={{ textAlign: 'right' }}>Total</th></tr></thead>
                 <tbody>
                   {pfRecords.map((r, i) => (
                     <tr key={r.id}>
                       <td>{i + 1}</td>
                       <td><div><strong>{r.full_name}</strong></div><div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{r.employee_code}</div></td>
-                      <td className="font-mono" style={{ fontSize: 12 }}>—</td>
+                      <td className="font-mono" style={{ fontSize: 12 }}>{r.uan || <span style={{ color: 'var(--danger)' }}>Missing</span>}</td>
+                      <td className="font-mono" style={{ fontSize: 12 }}>{r.pf_number || '—'}</td>
                       <td className="currency text-right">{fmt(Math.min(r.basic_salary, 15000))}</td>
                       <td className="currency text-right text-danger">{fmt(r.pf_deduction)}</td>
                       <td className="currency text-right text-danger">{fmt(r.employer_pf)}</td>
@@ -103,7 +104,7 @@ export default function PfEsicReportPage() {
                 </tbody>
                 <tfoot>
                   <tr style={{ fontWeight: 700, background: 'var(--gray-50)' }}>
-                    <td></td><td>TOTAL</td><td></td><td></td>
+                    <td></td><td>TOTAL</td><td></td><td></td><td></td>
                     <td className="currency text-right text-danger">{fmt(pfTotals.empPF)}</td>
                     <td className="currency text-right text-danger">{fmt(pfTotals.employerPF)}</td>
                     <td className="currency text-right font-bold">{fmt(pfTotals.empPF + pfTotals.employerPF)}</td>
@@ -125,7 +126,7 @@ export default function PfEsicReportPage() {
                       <tr key={r.id}>
                         <td>{i + 1}</td>
                         <td><div><strong>{r.full_name}</strong></div><div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{r.employee_code}</div></td>
-                        <td className="font-mono" style={{ fontSize: 12 }}>—</td>
+                        <td className="font-mono" style={{ fontSize: 12 }}>{r.esic_number || <span style={{ color: 'var(--danger)' }}>Missing</span>}</td>
                         <td className="currency text-right">{fmt(r.gross_earnings)}</td>
                         <td className="currency text-right text-danger">{fmt(r.esic_deduction)}</td>
                         <td className="currency text-right text-danger">{fmt(r.employer_esic)}</td>

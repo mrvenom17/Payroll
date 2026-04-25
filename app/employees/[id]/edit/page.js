@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
+import { PRESET_DESIGNATIONS } from '@/lib/designations';
 
 export default function EditEmployeePage({ params }) {
   const { id } = use(params);
@@ -126,7 +127,15 @@ export default function EditEmployeePage({ params }) {
               </div>
               <div className="form-group">
                 <label className="form-label">Designation</label>
-                <input className="form-input" value={form.designation || ''} onChange={e => updateField('designation', e.target.value)} />
+                <input
+                  className="form-input"
+                  list="preset-designations-edit"
+                  value={form.designation || ''}
+                  onChange={e => updateField('designation', e.target.value)}
+                />
+                <datalist id="preset-designations-edit">
+                  {PRESET_DESIGNATIONS.map(d => <option key={d} value={d} />)}
+                </datalist>
               </div>
               <div className="form-group">
                 <label className="form-label">Reporting Manager</label>

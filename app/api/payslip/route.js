@@ -74,12 +74,12 @@ export async function GET(request) {
     // PF
     const pfBase = Math.min(basicActual, 15000);
     const pfEmployee = Math.round(pfBase * 0.12);
-    if (pfEmployee > 0) deductions.push({ name: 'Provident Fund (12%)', amount: pfEmployee });
+    if (pfEmployee > 0) deductions.push({ name: 'Provident Fund @ 12% (Employee)', amount: pfEmployee });
 
     // ESIC
     if (totalEarnings <= 21000) {
       const esicEmp = Math.round(totalEarnings * 0.0075);
-      if (esicEmp > 0) deductions.push({ name: 'ESIC (0.75%)', amount: esicEmp });
+      if (esicEmp > 0) deductions.push({ name: 'ESI @ 0.75% (Employee)', amount: esicEmp });
     }
 
     // PT

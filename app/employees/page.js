@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useConfirm } from '@/components/ConfirmModal';
+import { useToast } from '@/components/Toast';
 
 const COLORS = ['#1B4D6E','#2A6F97','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#FF6B35'];
 
@@ -26,6 +28,39 @@ export default function EmployeesPage() {
   const [statusFilter, setStatusFilter] = useState('active');
   const [departments, setDepartments] = useState([]);
   const [deptFilter, setDeptFilter] = useState('');
+  const confirm = useConfirm();
+  const toast = useToast();
+
+  const reload = () => {
+    const params = new URLSearchParams({
+      company: localStorage.getItem('active_company') || 'comp_uabiotech',
+      status: statusFilter,
+    });
+    if (search) params.set('search', search);
+    if (deptFilter) params.set('department', deptFilter);
+    fetch(`/api/employees?${params}`)
+      .then(r => r.json())
+      .then(d => setEmployees(d.employees || []));
+  };
+
+  const deleteEmployee = async (emp) => {
+    const ok = await confirm({
+      title: 'Delete Employee?',
+      message: `This marks ${emp.full_name} (${emp.employee_code}) as exited and hides them from active lists. Attendance, payroll history and payslips remain intact. Use Edit → set Exit Date if you also need to trigger FNF settlement.`,
+      confirmText: 'Yes, Delete',
+      variant: 'danger',
+      icon: '🗑️',
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/employees/${emp.id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      toast.success(`${emp.full_name} deleted`);
+      reload();
+    } else {
+      toast.error(data.error || 'Delete failed');
+    }
+  };
 
   useEffect(() => {
     fetch(`/api/departments?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}`)
@@ -157,8 +192,16 @@ export default function EmployeesPage() {
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <Link href={`/employees/${emp.id}`} className="btn btn-ghost btn-sm">👁️</Link>
-                      <Link href={`/employees/${emp.id}/edit`} className="btn btn-ghost btn-sm">✏️</Link>
+                      <Link href={`/employees/${emp.id}`} className="btn btn-ghost btn-sm" title="View">👁️</Link>
+                      <Link href={`/employees/${emp.id}/edit`} className="btn btn-ghost btn-sm" title="Edit">✏️</Link>
+                      {emp.is_active ? (
+                        <button
+                          onClick={() => deleteEmployee(emp)}
+                          className="btn btn-ghost btn-sm"
+                          title="Delete (mark as exited)"
+                          style={{ color: 'var(--danger)' }}
+                        >🗑️</button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>

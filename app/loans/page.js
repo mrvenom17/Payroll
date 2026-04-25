@@ -13,7 +13,7 @@ export default function LoansPage() {
   const [msg, setMsg] = useState('');
   const [filter, setFilter] = useState('');
   const [form, setForm] = useState({
-    employee_id: '', loan_type: 'Advance', loan_amount: '', emi_amount: '', start_date: new Date().toISOString().split('T')[0],
+    employee_id: '', loan_type: 'Imprest Money', loan_amount: '', emi_amount: '', start_date: new Date().toISOString().split('T')[0],
   });
 
   const fetchData = () => {
@@ -102,7 +102,7 @@ export default function LoansPage() {
                 return (
                   <tr key={l.id}>
                     <td><div><strong>{l.full_name}</strong></div><div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{l.employee_code}</div></td>
-                    <td><span className={`badge ${l.loan_type === 'Advance' ? 'badge-info' : l.loan_type === 'Personal Loan' ? 'badge-warning' : 'badge-primary'}`}>{l.loan_type}</span></td>
+                    <td><span className={`badge ${['Imprest Money','Advance','Festival Advance'].includes(l.loan_type) ? 'badge-info' : l.loan_type === 'Personal Loan' ? 'badge-warning' : 'badge-primary'}`}>{l.loan_type}</span></td>
                     <td className="currency text-right">{fmt(l.loan_amount)}</td>
                     <td className="currency text-right">{fmt(l.emi_amount)}</td>
                     <td>{paidEmis} / {l.total_emis}</td>
@@ -142,12 +142,17 @@ export default function LoansPage() {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Loan Type</label>
+                  <label className="form-label">Loan / Advance Type</label>
                   <select className="form-select" value={form.loan_type} onChange={e => setForm(p => ({ ...p, loan_type: e.target.value }))}>
-                    <option>Advance</option>
-                    <option>Personal Loan</option>
-                    <option>Emergency Loan</option>
-                    <option>Festival Advance</option>
+                    <optgroup label="Advances">
+                      <option>Imprest Money</option>
+                      <option>Advance</option>
+                      <option>Festival Advance</option>
+                    </optgroup>
+                    <optgroup label="Loans">
+                      <option>Personal Loan</option>
+                      <option>Emergency Loan</option>
+                    </optgroup>
                   </select>
                 </div>
                 <div className="form-row">

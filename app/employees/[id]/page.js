@@ -2,7 +2,9 @@
 
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/Toast';
+import { useConfirm } from '@/components/ConfirmModal';
 
 const COLORS = ['#1B4D6E','#2A6F97','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#FF6B35'];
 
@@ -22,7 +24,9 @@ function getInitials(name) {
 
 export default function EmployeeDetailPage({ params }) {
   const { id } = use(params);
+  const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('personal');
@@ -30,6 +34,10 @@ export default function EmployeeDetailPage({ params }) {
   const [documents, setDocuments] = useState([]);
   const [savingInv, setSavingInv] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [showStructureModal, setShowStructureModal] = useState(false);
+  const [allComponents, setAllComponents] = useState([]);
+  const [structForm, setStructForm] = useState({ effective_from: '', amounts: {} });
+  const [savingStruct, setSavingStruct] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -93,6 +101,46 @@ export default function EmployeeDetailPage({ params }) {
     setInvestments([...investments, { section: '80C', type: 'Life Insurance', amount: '' }]);
   };
 
+  const openStructureEditor = async () => {
+    if (allComponents.length === 0) {
+      try {
+        const res = await fetch('/api/salary-components');
+        const d = await res.json();
+        setAllComponents((d.components || []).filter(c => c.type === 'EARNING' && c.is_active !== 0));
+      } catch (e) { toast.error('Could not load components'); return; }
+    }
+    const amounts = {};
+    (data.salaryStructure?.components || []).forEach(c => {
+      if (c.type === 'EARNING') amounts[c.code] = c.monthly;
+    });
+    setStructForm({
+      effective_from: data.salaryStructure?.effective_from || new Date().toISOString().split('T')[0],
+      amounts,
+    });
+    setShowStructureModal(true);
+  };
+
+  const saveStructure = async () => {
+    setSavingStruct(true);
+    const components = Object.entries(structForm.amounts).map(([code, monthly_amount]) => ({ code, monthly_amount: Number(monthly_amount) || 0 }));
+    const res = await fetch('/api/salary-structures', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employee_id: id, effective_from: structForm.effective_from, components }),
+    });
+    const resp = await res.json();
+    setSavingStruct(false);
+    if (resp.success) {
+      toast.success(`Structure saved · CTC ₹${resp.ctc_annual.toLocaleString('en-IN')}/yr`);
+      setShowStructureModal(false);
+      // Refetch detail
+      const refetch = await fetch(`/api/employees/${id}`).then(r => r.json());
+      setData(refetch);
+    } else {
+      toast.error(resp.error || 'Save failed');
+    }
+  };
+
   const handleFileUpload = async (e) => {
     e.preventDefault();
     const file = e.target.file.files[0];
@@ -143,10 +191,34 @@ export default function EmployeeDetailPage({ params }) {
             </span>
           </div>
         </div>
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <Link href={`/employees/${id}/edit`} className="btn" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}>
             ✏️ Edit
           </Link>
+          {emp.is_active && (
+            <button
+              onClick={async () => {
+                const ok = await confirm({
+                  title: 'Delete Employee?',
+                  message: `This marks ${emp.full_name} (${emp.employee_code}) as exited. Payroll, attendance and payslip history are preserved. Use Edit → set Exit Date if you also want to trigger FNF settlement.`,
+                  confirmText: 'Yes, Delete',
+                  variant: 'danger',
+                  icon: '🗑️',
+                });
+                if (!ok) return;
+                const res = await fetch(`/api/employees/${id}`, { method: 'DELETE' });
+                const d = await res.json();
+                if (d.success) {
+                  toast.success(`${emp.full_name} deleted`);
+                  router.push('/employees');
+                } else {
+                  toast.error(d.error || 'Delete failed');
+                }
+              }}
+              className="btn"
+              style={{ background: 'rgba(239,68,68,0.25)', color: 'white', border: '1px solid rgba(239,68,68,0.35)' }}
+            >🗑️ Delete</button>
+          )}
         </div>
       </div>
 
@@ -314,6 +386,12 @@ export default function EmployeeDetailPage({ params }) {
 
           {activeTab === 'salary' && (
             <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700 }}>💰 Salary Structure</h3>
+                <button className="btn btn-primary btn-sm" onClick={openStructureEditor}>
+                  {salary ? '✏️ Edit Structure' : '➕ Create Structure'}
+                </button>
+              </div>
               {salary ? (
                 <>
                   <div className="stat-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', marginBottom: 24 }}>
@@ -337,7 +415,7 @@ export default function EmployeeDetailPage({ params }) {
                     </div>
                   </div>
 
-                  <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>💰 Component Breakdown (Monthly)</h3>
+                  <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 12 }}>Component Breakdown (Monthly)</h4>
 
                   {/* Earnings */}
                   <div style={{ marginBottom: 20 }}>
@@ -361,10 +439,10 @@ export default function EmployeeDetailPage({ params }) {
               ) : (
                 <div className="table-empty">
                   <div className="table-empty-icon">💰</div>
-                  <p>No salary structure assigned</p>
-                  <Link href={`/salary?employee=${id}`} className="btn btn-primary btn-sm" style={{ marginTop: 12 }}>
-                    Assign Salary Structure
-                  </Link>
+                  <p>No salary structure assigned yet</p>
+                  <button className="btn btn-primary btn-sm" style={{ marginTop: 12 }} onClick={openStructureEditor}>
+                    ➕ Create Structure
+                  </button>
                 </div>
               )}
             </div>
@@ -534,6 +612,83 @@ export default function EmployeeDetailPage({ params }) {
 
         </div>
       </div>
+
+      {/* Structure Editor Modal */}
+      {showStructureModal && (
+        <div className="modal-overlay" onClick={() => setShowStructureModal(false)}>
+          <div className="modal" style={{ maxWidth: 680 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">💰 Edit Salary Structure — {emp.full_name}</h3>
+              <button className="modal-close" onClick={() => setShowStructureModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="alert alert-info" style={{ marginBottom: 16, fontSize: 13 }}>
+                Set monthly amounts per earning component. CTC auto-computes as monthly total × 12. Statutory deductions (PF/ESI/PT/TDS) are calculated automatically at payroll run.
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Effective From</label>
+                <input type="date" className="form-input" value={structForm.effective_from} onChange={e => setStructForm(p => ({ ...p, effective_from: e.target.value }))} style={{ maxWidth: 220 }} />
+              </div>
+
+              <table>
+                <thead>
+                  <tr>
+                    <th>Component</th>
+                    <th>Code</th>
+                    <th style={{ textAlign: 'right' }}>Monthly (₹)</th>
+                    <th style={{ textAlign: 'right' }}>Annual (₹)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allComponents.map(c => {
+                    const val = structForm.amounts[c.code] ?? '';
+                    const annual = (Number(val) || 0) * 12;
+                    return (
+                      <tr key={c.code}>
+                        <td>
+                          <div><strong>{c.name}</strong></div>
+                          {c.description && <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{c.description}</div>}
+                        </td>
+                        <td className="font-mono" style={{ fontSize: 12 }}>{c.code}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          <input
+                            type="number"
+                            className="form-input"
+                            style={{ width: 130, textAlign: 'right' }}
+                            value={val}
+                            min={0}
+                            onChange={e => setStructForm(p => ({ ...p, amounts: { ...p.amounts, [c.code]: e.target.value } }))}
+                          />
+                        </td>
+                        <td className="currency text-right" style={{ color: 'var(--text-tertiary)' }}>{formatCurrency(annual)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  {(() => {
+                    const monthly = Object.values(structForm.amounts).reduce((s, v) => s + (Number(v) || 0), 0);
+                    return (
+                      <tr style={{ fontWeight: 700, background: 'var(--gray-50)' }}>
+                        <td colSpan={2}>TOTAL CTC</td>
+                        <td className="currency text-right">{formatCurrency(monthly)}</td>
+                        <td className="currency text-right text-success">{formatCurrency(monthly * 12)}</td>
+                      </tr>
+                    );
+                  })()}
+                </tfoot>
+              </table>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setShowStructureModal(false)} disabled={savingStruct}>Cancel</button>
+              <button className="btn btn-success" onClick={saveStructure} disabled={savingStruct}>
+                {savingStruct ? '⏳ Saving…' : '💾 Save Structure'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -159,6 +159,8 @@ export default function PayslipPage() {
                   ['Date of Joining', payslip.employee.doj],
                   ['PAN', payslip.employee.pan || '—'],
                   ['UAN', payslip.employee.uan || '—'],
+                  ['ESI No.', payslip.employee.esicNumber || '—'],
+                  ['PF No.', payslip.employee.pfNumber || '—'],
                   ['Bank A/C', payslip.employee.accountNumber ? `***${payslip.employee.accountNumber.slice(-4)}` : '—'],
                 ].map(([label, value], i) => (
                   <div key={i}>
@@ -229,12 +231,20 @@ export default function PayslipPage() {
               <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--primary)' }}>{formatINR(payslip.netPayable)}</div>
             </div>
 
-            {/* Employer Contributions */}
+            {/* Company Contributions */}
             <div style={{ padding: '16px 32px', borderTop: '1px solid var(--border-light)', margin: '16px 0 0', fontSize: 13 }}>
-              <div style={{ color: 'var(--text-tertiary)', fontWeight: 600, marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Employer Contributions (Not deducted from salary)</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span>PF (Employer 12%): <strong>{formatINR(payslip.employerContributions.pf)}</strong></span>
-                {payslip.employerContributions.esic > 0 && <span>ESI 3.25%: <strong>{formatINR(payslip.employerContributions.esic)}</strong></span>}
+              <div style={{ color: 'var(--text-tertiary)', fontWeight: 600, marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Company Contributions (not deducted from salary)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)' }}>
+                  <span>PF @ 12% (Employer)</span>
+                  <strong>{formatINR(payslip.employerContributions.pf)}</strong>
+                </div>
+                {payslip.employerContributions.esic > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)' }}>
+                    <span>ESI @ 3.25% (Employer)</span>
+                    <strong>{formatINR(payslip.employerContributions.esic)}</strong>
+                  </div>
+                )}
               </div>
             </div>
 
