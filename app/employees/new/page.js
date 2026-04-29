@@ -34,6 +34,26 @@ export default function NewEmployeePage() {
     ctc_annual: '',
   });
 
+  // Salary structure: 'auto' uses template (Basic = 50% of gross, HRA = 40% of basic, etc.)
+  // 'manual' lets user enter each component amount individually.
+  const [salaryMode, setSalaryMode] = useState('auto');
+  const [template, setTemplate] = useState({ basic_pct: 50, hra_pct: 40, conv: 1600, med: 1250 });
+  const [manualComponents, setManualComponents] = useState({
+    BASIC: '', HRA: '', CONV: '', MED: '', SPL: '',
+  });
+
+  useEffect(() => {
+    fetch('/api/settings/integrations').then(r => r.json()).then(d => {
+      const s = d.settings || {};
+      setTemplate({
+        basic_pct: Number(s.template_basic_pct ?? 50),
+        hra_pct: Number(s.template_hra_pct ?? 40),
+        conv: Number(s.template_conv_amount ?? 1600),
+        med: Number(s.template_med_amount ?? 1250),
+      });
+    }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     const company = localStorage.getItem('active_company') || 'comp_uabiotech';
     setForm(prev => ({ ...prev, company_id: company }));
@@ -64,14 +84,32 @@ export default function NewEmployeePage() {
     const err = validate();
     if (err) { toast.error(err); return; }
     setSaving(true);
+
+    let payload = {
+      ...form,
+      ctc_annual: form.ctc_annual ? parseFloat(form.ctc_annual) : 0,
+    };
+
+    if (salaryMode === 'manual') {
+      const components = Object.entries(manualComponents)
+        .map(([code, v]) => ({ code, monthly_amount: Number(v) || 0 }))
+        .filter(c => c.monthly_amount > 0);
+      if (components.length === 0) {
+        toast.error('Enter at least one component amount, or switch to Auto');
+        setSaving(false);
+        return;
+      }
+      payload.salary_components = components;
+      const monthlyTotal = components.reduce((s, c) => s + c.monthly_amount, 0);
+      // CTC Annual matches the manual entry
+      payload.ctc_annual = monthlyTotal * 12;
+    }
+
     try {
       const res = await fetch('/api/employees', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...form,
-          ctc_annual: form.ctc_annual ? parseFloat(form.ctc_annual) : 0,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (res.ok) {
@@ -343,34 +381,109 @@ export default function NewEmployeePage() {
 
               <hr style={{ margin: '24px 0', border: 'none', borderTop: '2px solid var(--gray-100)' }} />
 
-              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16 }}>💰 Salary Structure</h3>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Annual CTC (₹)</label>
-                  <input type="number" className="form-input" placeholder="e.g., 480000" value={form.ctc_annual}
-                    onChange={e => u('ctc_annual', e.target.value)} style={{ fontSize: 18, fontWeight: 700 }} />
-                  <span className="form-hint">Monthly: ₹{form.ctc_annual ? Math.round(parseFloat(form.ctc_annual) / 12).toLocaleString('en-IN') : '0'}</span>
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Auto-Breakdown</label>
-                  {form.ctc_annual > 0 && (() => {
-                    const monthly = Math.round(parseFloat(form.ctc_annual) / 12);
-                    const basic = Math.round(parseFloat(form.ctc_annual) * 0.40 / 12);
-                    const hra = Math.round(basic * 0.40);
-                    const conv = 1600, med = 1250;
-                    const special = Math.max(monthly - basic - hra - conv - med, 0);
-                    return (
-                      <div style={{ padding: 12, background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', fontSize: 13 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>Basic</span><span className="font-bold">₹{basic.toLocaleString('en-IN')}</span></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>HRA</span><span>₹{hra.toLocaleString('en-IN')}</span></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>Conveyance</span><span>₹{conv.toLocaleString('en-IN')}</span></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>Medical</span><span>₹{med.toLocaleString('en-IN')}</span></div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--gray-200)', paddingTop: 4 }}><span>Special Allowance</span><span>₹{special.toLocaleString('en-IN')}</span></div>
-                      </div>
-                    );
-                  })()}
-                </div>
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>💰 Salary Structure</h3>
+
+              {/* Mode toggle */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                {[
+                  { v: 'auto', label: '⚡ Auto-Breakdown', hint: `From CTC using template (Basic ${template.basic_pct}% of Gross)` },
+                  { v: 'manual', label: '✏️ Manual Entry', hint: 'Enter each component amount yourself' },
+                ].map(opt => (
+                  <button
+                    key={opt.v}
+                    type="button"
+                    onClick={() => setSalaryMode(opt.v)}
+                    style={{
+                      flex: 1, padding: 12, borderRadius: 'var(--radius-md)',
+                      border: `2px solid ${salaryMode === opt.v ? 'var(--primary)' : 'var(--border-light)'}`,
+                      background: salaryMode === opt.v ? 'var(--primary-50, #eef5fa)' : 'white',
+                      cursor: 'pointer', textAlign: 'left',
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{opt.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>{opt.hint}</div>
+                  </button>
+                ))}
               </div>
+
+              {salaryMode === 'auto' ? (
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Annual CTC (₹)</label>
+                    <input type="number" className="form-input" placeholder="e.g., 600000" value={form.ctc_annual}
+                      onChange={e => u('ctc_annual', e.target.value)} style={{ fontSize: 18, fontWeight: 700 }} />
+                    <span className="form-hint">Monthly: ₹{form.ctc_annual ? Math.round(parseFloat(form.ctc_annual) / 12).toLocaleString('en-IN') : '0'}</span>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Computed Breakdown</label>
+                    {form.ctc_annual > 0 && (() => {
+                      const monthly = Math.round(parseFloat(form.ctc_annual) / 12);
+                      const basic = Math.round(monthly * (template.basic_pct / 100));
+                      const hra = Math.round(basic * (template.hra_pct / 100));
+                      const conv = template.conv;
+                      const med = template.med;
+                      const special = Math.max(monthly - basic - hra - conv - med, 0);
+                      return (
+                        <div style={{ padding: 12, background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', fontSize: 13 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>Basic ({template.basic_pct}%)</span><span className="font-bold">₹{basic.toLocaleString('en-IN')}</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>HRA ({template.hra_pct}% of Basic)</span><span>₹{hra.toLocaleString('en-IN')}</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>Conveyance</span><span>₹{conv.toLocaleString('en-IN')}</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>Medical</span><span>₹{med.toLocaleString('en-IN')}</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--gray-200)', paddingTop: 4 }}><span>Special Allowance</span><span>₹{special.toLocaleString('en-IN')}</span></div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div className="alert alert-info" style={{ marginBottom: 12, fontSize: 12 }}>
+                    Enter monthly amount for each component. Annual CTC auto-calculates as monthly total × 12.
+                  </div>
+                  <table>
+                    <thead>
+                      <tr><th>Component</th><th style={{ textAlign: 'right' }}>Monthly (₹)</th><th style={{ textAlign: 'right' }}>Annual (₹)</th></tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        ['BASIC', 'Basic Salary'],
+                        ['HRA', 'House Rent Allowance'],
+                        ['CONV', 'Conveyance'],
+                        ['MED', 'Medical'],
+                        ['SPL', 'Special Allowance'],
+                      ].map(([code, label]) => {
+                        const v = manualComponents[code];
+                        const annual = (Number(v) || 0) * 12;
+                        return (
+                          <tr key={code}>
+                            <td><strong>{label}</strong></td>
+                            <td style={{ textAlign: 'right' }}>
+                              <input type="number" className="form-input" min={0} style={{ width: 140, textAlign: 'right' }}
+                                value={v}
+                                onChange={e => setManualComponents(p => ({ ...p, [code]: e.target.value }))} />
+                            </td>
+                            <td className="currency text-right" style={{ color: 'var(--text-tertiary)' }}>
+                              ₹{annual.toLocaleString('en-IN')}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      {(() => {
+                        const monthly = Object.values(manualComponents).reduce((s, v) => s + (Number(v) || 0), 0);
+                        return (
+                          <tr style={{ fontWeight: 700, background: 'var(--gray-50)' }}>
+                            <td>TOTAL CTC</td>
+                            <td className="currency text-right">₹{monthly.toLocaleString('en-IN')}</td>
+                            <td className="currency text-right text-success">₹{(monthly * 12).toLocaleString('en-IN')}</td>
+                          </tr>
+                        );
+                      })()}
+                    </tfoot>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         )}

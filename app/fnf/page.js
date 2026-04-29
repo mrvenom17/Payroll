@@ -175,6 +175,30 @@ export default function FnfPage() {
           <h1 className="page-title">📝 Full & Final Settlement</h1>
           <p className="page-subtitle">Process FNF for exited employees · Default payout: <strong>{paymentDefaults.default_payment_mode}</strong></p>
         </div>
+        {settlements.length > 0 && (
+          <button
+            className="btn btn-outline"
+            style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+            onClick={async () => {
+              const ok = await confirm({
+                title: 'Clear all FNF history?',
+                message: `Permanently delete all ${settlements.length} FNF settlement record${settlements.length === 1 ? '' : 's'} for this company, including the linked payment ledger entries. Employees themselves are NOT touched. This cannot be undone.`,
+                confirmText: 'Yes, Clear All',
+                variant: 'danger',
+                icon: '🗑️',
+              });
+              if (!ok) return;
+              const res = await fetch(`/api/fnf?scope=all&company=${localStorage.getItem('active_company') || 'comp_uabiotech'}`, { method: 'DELETE' });
+              const d = await res.json();
+              if (d.success) {
+                toast.success(`Cleared ${d.deleted} settlement${d.deleted === 1 ? '' : 's'}`);
+                fetchData();
+              } else {
+                toast.error(d.error || 'Clear failed');
+              }
+            }}
+          >🗑️ Clear All History</button>
+        )}
       </div>
 
       {/* Summary */}

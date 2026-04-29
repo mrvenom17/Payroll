@@ -96,37 +96,60 @@ export async function POST(request) {
       `INSERT INTO employees (${insertFields.join(', ')}) VALUES (${placeholders.join(', ')})`
     ).run(...values);
 
-    // If CTC provided, create salary structure
-    if (body.ctc_annual && body.ctc_annual > 0) {
-      const ctcAnnual = parseFloat(body.ctc_annual);
-      const ctcMonthly = Math.round(ctcAnnual / 12);
-      const structId = generateId();
+    // Salary structure: prefer explicit components from client (manual entry).
+    // Fall back to auto-breakdown using template settings if only ctc_annual is given.
+    const hasExplicitComponents = Array.isArray(body.salary_components) && body.salary_components.length > 0;
 
+    if (hasExplicitComponents || (body.ctc_annual && body.ctc_annual > 0)) {
+      const setting = (key, fallback) => {
+        const row = db.prepare('SELECT setting_value FROM system_settings WHERE setting_key = ?').get(key);
+        return row ? Number(row.setting_value) : fallback;
+      };
+      const tBasicPct = setting('template_basic_pct', 50);
+      const tHraPct = setting('template_hra_pct', 40);
+      const tConv = setting('template_conv_amount', 1600);
+      const tMed = setting('template_med_amount', 1250);
+
+      // Resolve the components by code
+      const allComps = db.prepare(`SELECT id, code FROM salary_components WHERE type='EARNING'`).all();
+      const codeToId = Object.fromEntries(allComps.map(c => [c.code, c.id]));
+
+      let comps;
+      if (hasExplicitComponents) {
+        comps = body.salary_components
+          .map(c => ({ component_id: codeToId[c.code], monthly: Math.max(0, Math.round(Number(c.monthly_amount) || 0)) }))
+          .filter(c => c.component_id);
+      } else {
+        const ctcAnnual = parseFloat(body.ctc_annual);
+        const monthly = Math.round(ctcAnnual / 12);
+        const basic = Math.round(monthly * (tBasicPct / 100));
+        const hra = Math.round(basic * (tHraPct / 100));
+        const conv = tConv;
+        const med = tMed;
+        const special = Math.max(monthly - basic - hra - conv - med, 0);
+        comps = [
+          { component_id: codeToId.BASIC, monthly: basic },
+          { component_id: codeToId.HRA, monthly: hra },
+          { component_id: codeToId.CONV, monthly: conv },
+          { component_id: codeToId.MED, monthly: med },
+          { component_id: codeToId.SPL, monthly: special },
+        ].filter(c => c.component_id);
+      }
+
+      const monthlyTotal = comps.reduce((s, c) => s + c.monthly, 0);
+      const ctcAnnual = body.ctc_annual ? Math.round(parseFloat(body.ctc_annual)) : monthlyTotal * 12;
+      const ctcMonthly = Math.round(ctcAnnual / 12);
+
+      const structId = generateId();
       db.prepare(
         'INSERT INTO salary_structures (id, employee_id, ctc_annual, ctc_monthly, effective_from) VALUES (?, ?, ?, ?, ?)'
       ).run(structId, id, ctcAnnual, ctcMonthly, body.joining_date || new Date().toISOString().split('T')[0]);
 
-      // Auto-calculate breakdown
-      const basic = Math.round(ctcAnnual * 0.40 / 12);
-      const hra = Math.round(basic * 0.40);
-      const conv = 1600;
-      const med = 1250;
-      const special = Math.max(ctcMonthly - basic - hra - conv - med, 0);
-
-      const components = [
-        ['sc_basic', basic],
-        ['sc_hra', hra],
-        ['sc_conv', conv],
-        ['sc_med', med],
-        ['sc_spl', special],
-      ];
-
       const insertDetail = db.prepare(
         'INSERT INTO salary_structure_details (id, salary_structure_id, component_id, monthly_amount, annual_amount) VALUES (?, ?, ?, ?, ?)'
       );
-
-      components.forEach(([compId, monthly]) => {
-        insertDetail.run(generateId(), structId, compId, monthly, monthly * 12);
+      comps.forEach(c => {
+        insertDetail.run(generateId(), structId, c.component_id, c.monthly, c.monthly * 12);
       });
     }
 

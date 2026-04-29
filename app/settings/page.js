@@ -12,7 +12,13 @@ export default function SettingsPage() {
     default_payment_mode: 'NEFT',
     payer_bank_name: '', payer_account_number: '', payer_ifsc: '',
     next_cheque_number: '000001',
+    // Salary structure template (auto-breakdown defaults)
+    template_basic_pct: 50,
+    template_hra_pct: 40,
+    template_conv_amount: 1600,
+    template_med_amount: 1250,
   });
+  const [editingTemplate, setEditingTemplate] = useState(false);
 
   useEffect(() => {
     fetch(`/api/dashboard?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}`)
@@ -33,9 +39,10 @@ export default function SettingsPage() {
           esic_code: '23000123450001234',
           pt_registration: 'PT/MP/JBP/2020/0045',
           lwf_number: 'LWF/MP/2020/0089',
-          payroll_day: 28,
+          payroll_day: 3,
           leave_year_start: 'January',
           financial_year: '2025-2026',
+          working_days_per_week: 5,
         });
       });
 
@@ -226,9 +233,8 @@ export default function SettingsPage() {
               <div className="form-group">
                 <label className="form-label">Payroll Processing Day</label>
                 <select className="form-select" value={company.payroll_day} onChange={e => setCompany(prev => ({ ...prev, payroll_day: parseInt(e.target.value) }))}>
-                  {Array.from({ length: 28 }, (_, i) => (
-                    <option key={i + 1} value={i + 1}>{i + 1}</option>
-                  ))}
+                  <option value={3}>3rd of month</option>
+                  <option value={4}>4th of month</option>
                 </select>
                 <span className="form-hint">Day of month when payroll is processed</span>
               </div>
@@ -241,31 +247,72 @@ export default function SettingsPage() {
                 </select>
               </div>
               <div className="form-group">
-                <label className="form-label">Default Working Days</label>
-                <input type="number" className="form-input" value={22} readOnly />
-                <span className="form-hint">Per month, excl. Sundays & holidays</span>
+                <label className="form-label">Working Days / Week</label>
+                <select className="form-select" value={company.working_days_per_week} onChange={e => setCompany(prev => ({ ...prev, working_days_per_week: parseInt(e.target.value) }))}>
+                  <option value={5}>5 days / week</option>
+                  <option value={6}>6 days / week</option>
+                </select>
+                <span className="form-hint">5-day week → ~22 working days/month · 6-day week → ~26</span>
               </div>
             </div>
 
             <hr style={{ margin: '20px 0', border: 'none', borderTop: '2px solid var(--gray-100)' }} />
-            <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>💰 Salary Structure Template</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-              {[
-                { component: 'Basic', formula: '40% of CTC', editable: true },
-                { component: 'HRA', formula: '40% of Basic', editable: true },
-                { component: 'Conveyance', formula: '₹1,600 fixed', editable: true },
-                { component: 'Medical', formula: '₹1,250 fixed', editable: true },
-                { component: 'Special Allowance', formula: 'CTC - Others', editable: false },
-              ].map((c, i) => (
-                <div key={i} style={{ padding: 12, background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 14 }}>{c.component}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{c.formula}</div>
-                  </div>
-                  {c.editable && <span style={{ fontSize: 11, color: 'var(--primary)', fontWeight: 600 }}>Configurable</span>}
-                </div>
-              ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h4 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>💰 Salary Structure Template (auto-breakdown defaults)</h4>
+              <button type="button" className="btn btn-sm btn-outline" onClick={() => setEditingTemplate(v => !v)}>
+                {editingTemplate ? '✓ Done' : '✏️ Modify'}
+              </button>
             </div>
+            {editingTemplate ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Basic — % of Gross</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input type="number" className="form-input" min={0} max={100} value={integrations.template_basic_pct}
+                      onChange={e => setIntegrations(p => ({ ...p, template_basic_pct: parseFloat(e.target.value) || 0 }))} />
+                    <span>%</span>
+                  </div>
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">HRA — % of Basic</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input type="number" className="form-input" min={0} max={100} value={integrations.template_hra_pct}
+                      onChange={e => setIntegrations(p => ({ ...p, template_hra_pct: parseFloat(e.target.value) || 0 }))} />
+                    <span>%</span>
+                  </div>
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Conveyance — fixed (₹/mo)</label>
+                  <input type="number" className="form-input" min={0} value={integrations.template_conv_amount}
+                    onChange={e => setIntegrations(p => ({ ...p, template_conv_amount: parseFloat(e.target.value) || 0 }))} />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Medical — fixed (₹/mo)</label>
+                  <input type="number" className="form-input" min={0} value={integrations.template_med_amount}
+                    onChange={e => setIntegrations(p => ({ ...p, template_med_amount: parseFloat(e.target.value) || 0 }))} />
+                </div>
+                <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--text-tertiary)' }}>
+                  💡 Special Allowance is the balancing component (Gross − Basic − HRA − Conv − Med). Click "Save Settings" above to persist.
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+                {[
+                  { component: 'Basic', formula: `${integrations.template_basic_pct}% of Gross` },
+                  { component: 'HRA', formula: `${integrations.template_hra_pct}% of Basic` },
+                  { component: 'Conveyance', formula: `₹${Number(integrations.template_conv_amount).toLocaleString('en-IN')} fixed` },
+                  { component: 'Medical', formula: `₹${Number(integrations.template_med_amount).toLocaleString('en-IN')} fixed` },
+                  { component: 'Special Allowance', formula: 'Gross − Others (balancing)' },
+                ].map((c, i) => (
+                  <div key={i} style={{ padding: 12, background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{c.component}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{c.formula}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

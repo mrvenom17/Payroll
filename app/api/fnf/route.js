@@ -123,6 +123,55 @@ export async function POST(request) {
   }
 }
 
+// DELETE — clear settlements
+//   ?id=<settlement_id>  → delete one
+//   ?company=<id>&scope=all  → delete every settlement under company (clears history)
+export async function DELETE(request) {
+  try {
+    const db = getDb();
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    const scope = searchParams.get('scope');
+    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || 'comp_uabiotech';
+
+    if (id) {
+      const s = db.prepare('SELECT employee_id FROM fnf_settlements WHERE id = ?').get(id);
+      if (!s) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      const txn = db.transaction(() => {
+        db.prepare(`DELETE FROM payments WHERE payment_kind = 'FNF' AND reference_id = ?`).run(id);
+        db.prepare('DELETE FROM fnf_settlements WHERE id = ?').run(id);
+      });
+      txn();
+      return NextResponse.json({ success: true, deleted: 1 });
+    }
+
+    if (scope === 'all') {
+      const rows = db.prepare(
+        `SELECT f.id FROM fnf_settlements f JOIN employees e ON e.id = f.employee_id WHERE e.company_id = ?`
+      ).all(companyId);
+      const ids = rows.map(r => r.id);
+      const txn = db.transaction(() => {
+        if (ids.length > 0) {
+          const ph = ids.map(() => '?').join(',');
+          db.prepare(`DELETE FROM payments WHERE payment_kind = 'FNF' AND reference_id IN (${ph})`).run(...ids);
+          db.prepare(`DELETE FROM fnf_settlements WHERE id IN (${ph})`).run(...ids);
+        }
+      });
+      txn();
+      try {
+        db.prepare(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+          .run(generateId(), companyId, 'FNF_CLEARED_ALL', 'fnf_settlement', null, JSON.stringify({ count: ids.length }), 'admin');
+      } catch (e) { console.error('audit:', e.message); }
+      return NextResponse.json({ success: true, deleted: ids.length });
+    }
+
+    return NextResponse.json({ error: 'Provide id=<settlement_id> or scope=all&company=<id>' }, { status: 400 });
+  } catch (error) {
+    console.error('FNF DELETE:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
 // PUT — actions: 'approve' | 'pay' | 'cancel'
 export async function PUT(request) {
   try {
