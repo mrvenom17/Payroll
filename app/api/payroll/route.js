@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDb, generateId } from '@/lib/db';
+import { getPool, generateId } from '@/lib/db';
 import { calculatePF } from '@/lib/compliance/pf';
 import { calculateESIC } from '@/lib/compliance/esic';
 import { calculatePT } from '@/lib/compliance/pt-mp';
@@ -7,13 +7,13 @@ import { calculateTDS } from '@/lib/compliance/tds';
 
 export async function GET(request) {
   try {
-    const db = getDb();
+    const pool = getPool();
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || 'comp_uabiotech';
+    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
     const month = parseInt(searchParams.get('month')) || new Date().getMonth() + 1;
     const year = parseInt(searchParams.get('year')) || new Date().getFullYear();
 
-    const records = db.prepare(`
+    const [records] = await pool.execute(`
       SELECT p.*, e.full_name, e.employee_code, e.designation,
              e.uan, e.pf_number, e.esic_number, e.pan_number,
              d.name as department_name
@@ -22,7 +22,7 @@ export async function GET(request) {
       LEFT JOIN departments d ON e.department_id = d.id
       WHERE e.company_id = ? AND p.month = ? AND p.year = ?
       ORDER BY e.employee_code ASC
-    `).all(companyId, month, year);
+    `, [companyId, month, year]);
 
     const summary = {
       totalGross: records.reduce((s, r) => s + (r.gross_earnings || 0), 0),
@@ -47,60 +47,41 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const db = getDb();
+    const pool = getPool();
     const body = await request.json();
     const { company_id, month, year } = body;
-    const companyId = company_id || 'comp_uabiotech';
+    const companyId = company_id || '';
 
     // Get all active employees with salary structures
-    const employees = db.prepare(`
+    const [employees] = await pool.execute(`
       SELECT e.*, ss.ctc_annual, ss.ctc_monthly,
              d.name as department_name
       FROM employees e
       JOIN salary_structures ss ON ss.employee_id = e.id
       LEFT JOIN departments d ON e.department_id = d.id
       WHERE e.company_id = ? AND e.is_active = 1
-    `).all(companyId);
+    `, [companyId]);
 
     // Get attendance for the month
     const attendanceMap = {};
-    const attendance = db.prepare(
-      'SELECT * FROM attendance WHERE month = ? AND year = ?'
-    ).all(month, year);
+    const [attendance] = await pool.execute(
+      'SELECT * FROM attendance WHERE month = ? AND year = ?',
+      [month, year]
+    );
     attendance.forEach(a => { attendanceMap[a.employee_id] = a; });
 
     // Get active loans
     const loansMap = {};
-    const loans = db.prepare(
-      "SELECT * FROM loans WHERE status = 'ACTIVE'"
-    ).all();
+    const [loans] = await pool.execute("SELECT * FROM loans WHERE status = 'ACTIVE'");
     loans.forEach(l => {
       if (!loansMap[l.employee_id]) loansMap[l.employee_id] = [];
       loansMap[l.employee_id].push(l);
     });
 
-    const upsert = db.prepare(`
-      INSERT INTO payroll (id, employee_id, month, year, total_working_days, paid_days,
-        basic_salary, hra, conveyance, medical, special_allowance, bonus, overtime, arrears, reimbursements, gross_earnings,
-        pf_deduction, esic_deduction, pt_deduction, tds_deduction, loan_deduction, advance_deduction, other_deductions, total_deductions,
-        net_salary, employer_pf, employer_esic, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(employee_id, month, year) DO UPDATE SET
-        total_working_days = excluded.total_working_days, paid_days = excluded.paid_days,
-        basic_salary = excluded.basic_salary, hra = excluded.hra, conveyance = excluded.conveyance,
-        medical = excluded.medical, special_allowance = excluded.special_allowance,
-        bonus = excluded.bonus, overtime = excluded.overtime, arrears = excluded.arrears,
-        reimbursements = excluded.reimbursements, gross_earnings = excluded.gross_earnings,
-        pf_deduction = excluded.pf_deduction, esic_deduction = excluded.esic_deduction,
-        pt_deduction = excluded.pt_deduction, tds_deduction = excluded.tds_deduction,
-        loan_deduction = excluded.loan_deduction, advance_deduction = excluded.advance_deduction,
-        other_deductions = excluded.other_deductions, total_deductions = excluded.total_deductions,
-        net_salary = excluded.net_salary, employer_pf = excluded.employer_pf,
-        employer_esic = excluded.employer_esic, status = excluded.status,
-        updated_at = datetime('now')
-    `);
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
 
-    const transaction = db.transaction(() => {
       for (const emp of employees) {
         const att = attendanceMap[emp.id];
         const totalWorkingDays = att?.total_working_days || 26;
@@ -108,13 +89,13 @@ export async function POST(request) {
         const payRatio = totalWorkingDays > 0 ? paidDays / totalWorkingDays : 1;
 
         // Get salary components
-        const components = db.prepare(`
+        const [components] = await conn.execute(`
           SELECT ssd.*, sc.code as component_code
           FROM salary_structure_details ssd
           JOIN salary_components sc ON sc.id = ssd.component_id
           JOIN salary_structures ss ON ss.id = ssd.salary_structure_id
           WHERE ss.employee_id = ?
-        `).all(emp.id);
+        `, [emp.id]);
 
         const compMap = {};
         components.forEach(c => { compMap[c.component_code] = c.monthly_amount; });
@@ -168,21 +149,46 @@ export async function POST(request) {
         const totalDeductions = pfDeduction + esicDeduction + ptDeduction + tdsDeduction + loanDeduction;
         const netSalary = Math.max(grossEarnings - totalDeductions, 0);
 
-        upsert.run(
-          generateId(), emp.id, month, year, totalWorkingDays, paidDays,
+        const payrollId = generateId();
+        await conn.execute(`
+          INSERT INTO payroll (id, employee_id, month, year, total_working_days, paid_days,
+            basic_salary, hra, conveyance, medical, special_allowance, bonus, overtime, arrears, reimbursements, gross_earnings,
+            pf_deduction, esic_deduction, pt_deduction, tds_deduction, loan_deduction, advance_deduction, other_deductions, total_deductions,
+            net_salary, employer_pf, employer_esic, status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            total_working_days = VALUES(total_working_days), paid_days = VALUES(paid_days),
+            basic_salary = VALUES(basic_salary), hra = VALUES(hra), conveyance = VALUES(conveyance),
+            medical = VALUES(medical), special_allowance = VALUES(special_allowance),
+            bonus = VALUES(bonus), overtime = VALUES(overtime), arrears = VALUES(arrears),
+            reimbursements = VALUES(reimbursements), gross_earnings = VALUES(gross_earnings),
+            pf_deduction = VALUES(pf_deduction), esic_deduction = VALUES(esic_deduction),
+            pt_deduction = VALUES(pt_deduction), tds_deduction = VALUES(tds_deduction),
+            loan_deduction = VALUES(loan_deduction), advance_deduction = VALUES(advance_deduction),
+            other_deductions = VALUES(other_deductions), total_deductions = VALUES(total_deductions),
+            net_salary = VALUES(net_salary), employer_pf = VALUES(employer_pf),
+            employer_esic = VALUES(employer_esic), status = VALUES(status),
+            updated_at = NOW()
+        `, [
+          payrollId, emp.id, month, year, totalWorkingDays, paidDays,
           basic, hra, conv, med, spl, bonus, overtime, arrears, reimbursements, grossEarnings,
           pfDeduction, esicDeduction, ptDeduction, tdsDeduction, loanDeduction, 0, 0, totalDeductions,
           netSalary, employerPf, employerEsic, 'DRAFT'
-        );
+        ]);
       }
-    });
 
-    transaction();
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
 
     // Audit log
     try {
-      db.prepare(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-        .run(generateId(), companyId, 'PAYROLL_PROCESSED', 'payroll', `${month}-${year}`, JSON.stringify({ month, year, count: employees.length }), 'system');
+      await pool.execute(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [generateId(), companyId, 'PAYROLL_PROCESSED', 'payroll', `${month}-${year}`, JSON.stringify({ month, year, count: employees.length }), 'system']);
     } catch(e) { /* non-critical */ }
 
     return NextResponse.json({ success: true, processedCount: employees.length });
@@ -194,32 +200,32 @@ export async function POST(request) {
 
 export async function PUT(request) {
   try {
-    const db = getDb();
+    const pool = getPool();
     const body = await request.json();
     const { action, month, year, company_id } = body;
-    const companyId = company_id || 'comp_uabiotech';
+    const companyId = company_id || '';
 
     if (action === 'approve') {
-      db.prepare(`
-        UPDATE payroll SET status = 'APPROVED', approved_at = datetime('now'), updated_at = datetime('now')
+      await pool.execute(`
+        UPDATE payroll SET status = 'APPROVED', approved_at = NOW(), updated_at = NOW()
         WHERE month = ? AND year = ? AND status = 'DRAFT'
         AND employee_id IN (SELECT id FROM employees WHERE company_id = ?)
-      `).run(month, year, companyId);
+      `, [month, year, companyId]);
 
       try {
-        db.prepare(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-          .run(generateId(), companyId, 'PAYROLL_APPROVED', 'payroll', `${month}-${year}`, JSON.stringify({ month, year }), 'system');
+        await pool.execute(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [generateId(), companyId, 'PAYROLL_APPROVED', 'payroll', `${month}-${year}`, JSON.stringify({ month, year }), 'system']);
       } catch(e) { /* non-critical */ }
     } else if (action === 'mark_paid') {
-      db.prepare(`
-        UPDATE payroll SET status = 'PAID', paid_at = datetime('now'), updated_at = datetime('now')
+      await pool.execute(`
+        UPDATE payroll SET status = 'PAID', paid_at = NOW(), updated_at = NOW()
         WHERE month = ? AND year = ? AND status = 'APPROVED'
         AND employee_id IN (SELECT id FROM employees WHERE company_id = ?)
-      `).run(month, year, companyId);
+      `, [month, year, companyId]);
 
       try {
-        db.prepare(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-          .run(generateId(), companyId, 'PAYROLL_PAID', 'payroll', `${month}-${year}`, JSON.stringify({ month, year }), 'system');
+        await pool.execute(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [generateId(), companyId, 'PAYROLL_PAID', 'payroll', `${month}-${year}`, JSON.stringify({ month, year }), 'system']);
       } catch(e) { /* non-critical */ }
     }
 

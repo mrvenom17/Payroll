@@ -19,7 +19,7 @@ export default function DepartmentsPage() {
 
   const reload = () => {
     setLoading(true);
-    const company = localStorage.getItem('active_company') || 'comp_uabiotech';
+    const company = localStorage.getItem('active_company') || '';
     Promise.all([
       fetch(`/api/departments?company=${company}`).then(r => r.json()),
       fetch(`/api/employees?company=${company}&status=active`).then(r => r.json()),
@@ -62,7 +62,7 @@ export default function DepartmentsPage() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              company_id: localStorage.getItem('active_company') || 'comp_uabiotech',
+              company_id: localStorage.getItem('active_company') || '',
               ...form,
             }),
           });

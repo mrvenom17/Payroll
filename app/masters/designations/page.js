@@ -8,7 +8,7 @@ export default function DesignationsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch(`/api/employees?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}&status=active`)
+    fetch(`/api/employees?company=${localStorage.getItem('active_company') || ''}&status=active`)
       .then(r => r.json())
       .then(d => { setEmployees(d.employees || []); setLoading(false); });
   }, []);

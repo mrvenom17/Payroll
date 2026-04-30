@@ -26,7 +26,7 @@ export default function PayrollPage() {
 
   const fetchData = () => {
     setLoading(true);
-    fetch(`/api/payroll?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}&month=${month}&year=${year}`)
+    fetch(`/api/payroll?company=${localStorage.getItem('active_company') || ''}&month=${month}&year=${year}`)
       .then(r => r.json())
       .then(d => { setRecords(d.records || []); setSummary(d.summary || {}); setLoading(false); });
   };
@@ -44,7 +44,7 @@ export default function PayrollPage() {
     const res = await fetch('/api/payroll', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ company_id: localStorage.getItem('active_company') || 'comp_uabiotech', month, year }),
+      body: JSON.stringify({ company_id: localStorage.getItem('active_company') || '', month, year }),
     });
     const data = await res.json();
     setProcessing(false);
@@ -69,7 +69,7 @@ export default function PayrollPage() {
     const res = await fetch('/api/payroll', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'approve', month, year, company_id: localStorage.getItem('active_company') || 'comp_uabiotech' }),
+      body: JSON.stringify({ action: 'approve', month, year, company_id: localStorage.getItem('active_company') || '' }),
     });
     if ((await res.json()).success) {
       toast.success('Payroll approved successfully');
@@ -138,7 +138,7 @@ export default function PayrollPage() {
 
     const payload = {
       month, year,
-      company_id: localStorage.getItem('active_company') || 'comp_uabiotech',
+      company_id: localStorage.getItem('active_company') || '',
       payments: payRows.map(r => ({
         payroll_id: r.payroll_id,
         payment_mode: r.mode,
@@ -180,7 +180,7 @@ export default function PayrollPage() {
     const res = await fetch('/api/payroll/razorpay', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ month, year, company_id: localStorage.getItem('active_company') || 'comp_uabiotech' }),
+      body: JSON.stringify({ month, year, company_id: localStorage.getItem('active_company') || '' }),
     });
     setProcessing(false);
     

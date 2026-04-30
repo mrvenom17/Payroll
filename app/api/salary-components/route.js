@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getDb, generateId } from '@/lib/db';
+import { getPool, generateId } from '@/lib/db';
 
 export async function GET() {
   try {
-    const db = getDb();
-    const components = db.prepare(
+    const pool = getPool();
+    const [components] = await pool.execute(
       'SELECT * FROM salary_components WHERE is_active = 1 ORDER BY display_order ASC'
-    ).all();
+    );
     return NextResponse.json({ components });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -17,12 +17,12 @@ export async function GET() {
 // Body: { id, name?, percent_of?, default_percent?, default_amount?, is_taxable?, contributes_to_pf?, contributes_to_esic?, tax_deductible?, display_order? }
 export async function PUT(request) {
   try {
-    const db = getDb();
+    const pool = getPool();
     const body = await request.json();
     const { id } = body;
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
 
-    const existing = db.prepare('SELECT * FROM salary_components WHERE id = ?').get(id);
+    const [[existing]] = await pool.execute('SELECT * FROM salary_components WHERE id = ?', [id]);
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     const allowed = [
@@ -50,14 +50,14 @@ export async function PUT(request) {
     if (updates.length === 0) return NextResponse.json({ error: 'Nothing to update' }, { status: 400 });
 
     values.push(id);
-    db.prepare(`UPDATE salary_components SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+    await pool.execute(`UPDATE salary_components SET ${updates.join(', ')} WHERE id = ?`, values);
 
     try {
-      db.prepare(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-        .run(generateId(), null, 'SALARY_COMPONENT_UPDATED', 'salary_component', id, JSON.stringify(body), 'admin');
+      await pool.execute(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [generateId(), null, 'SALARY_COMPONENT_UPDATED', 'salary_component', id, JSON.stringify(body), 'admin']);
     } catch (e) { console.error('audit:', e.message); }
 
-    const updated = db.prepare('SELECT * FROM salary_components WHERE id = ?').get(id);
+    const [[updated]] = await pool.execute('SELECT * FROM salary_components WHERE id = ?', [id]);
     return NextResponse.json({ component: updated });
   } catch (error) {
     console.error('PUT /api/salary-components:', error);

@@ -12,7 +12,7 @@ export default function AttendanceReportPage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/attendance?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}&month=${month}&year=${year}`)
+    fetch(`/api/attendance?company=${localStorage.getItem('active_company') || ''}&month=${month}&year=${year}`)
       .then(r => r.json())
       .then(d => { setRecords(d.records || []); setLoading(false); });
   }, [month, year]);

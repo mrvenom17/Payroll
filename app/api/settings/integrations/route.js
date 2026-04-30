@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getPool } from '@/lib/db';
 
 export async function GET() {
   try {
-    const db = getDb();
-    const rows = db.prepare(`SELECT * FROM system_settings`).all();
+    const pool = getPool();
+    const [rows] = await pool.execute(`SELECT * FROM system_settings`);
     const settings = {};
     for (const row of rows) {
       settings[row.setting_key] = row.setting_value;
@@ -18,26 +18,31 @@ export async function GET() {
 export async function POST(request) {
   try {
     const data = await request.json(); // { razorpay_key_id: '...', razorpay_key_secret: '...' }
-    const db = getDb();
-    
-    const stmt = db.prepare(`
-      INSERT INTO system_settings (setting_key, setting_value, updated_at) 
-      VALUES (?, ?, datetime('now')) 
-      ON CONFLICT(setting_key) DO UPDATE SET 
-      setting_value = excluded.setting_value, 
-      updated_at = datetime('now')
-    `);
+    const pool = getPool();
 
-    // Use transaction for bulk save
-    const transaction = db.transaction((settingsObj) => {
-      for (const [key, value] of Object.entries(settingsObj)) {
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      for (const [key, value] of Object.entries(data)) {
         if (value !== undefined && value !== null) {
-          stmt.run(key, value.toString());
+          await conn.execute(`
+            INSERT INTO system_settings (setting_key, setting_value, updated_at)
+            VALUES (?, ?, NOW())
+            ON DUPLICATE KEY UPDATE
+            setting_value = VALUES(setting_value),
+            updated_at = NOW()
+          `, [key, value.toString()]);
         }
       }
-    });
 
-    transaction(data);
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 function formatINR(amt) { return '₹' + Number(amt || 0).toLocaleString('en-IN'); }
@@ -29,6 +29,14 @@ function numberToWords(num) {
 }
 
 export default function PayslipPage() {
+  return (
+    <Suspense fallback={<div className="page-loader"><div className="spinner"></div></div>}>
+      <PayslipContent />
+    </Suspense>
+  );
+}
+
+function PayslipContent() {
   const searchParams = useSearchParams();
   const [employees, setEmployees] = useState([]);
   const [selectedEmp, setSelectedEmp] = useState('');
@@ -39,7 +47,7 @@ export default function PayslipPage() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetch(`/api/employees?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}&status=active`)
+    fetch(`/api/employees?company=${localStorage.getItem('active_company') || ''}&status=active`)
       .then(r => r.json())
       .then(d => {
         setEmployees(d.employees || []);
@@ -59,7 +67,7 @@ export default function PayslipPage() {
   const loadPayslip = async () => {
     setLoading(true); setError(''); setPayslip(null);
     try {
-      const res = await fetch(`/api/payslip?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}&employee=${selectedEmp}&month=${month}&year=${year}`);
+      const res = await fetch(`/api/payslip?company=${localStorage.getItem('active_company') || ''}&employee=${selectedEmp}&month=${month}&year=${year}`);
       const d = await res.json();
       if (res.ok) {
         setPayslip(d.payslip);

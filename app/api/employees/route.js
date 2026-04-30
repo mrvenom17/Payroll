@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getDb, generateId } from '@/lib/db';
+import { getPool, generateId } from '@/lib/db';
 
 export async function GET(request) {
   try {
-    const db = getDb();
+    const pool = getPool();
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || 'comp_uabiotech';
+    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || 'all';
     const department = searchParams.get('department') || '';
@@ -41,7 +41,7 @@ export async function GET(request) {
 
     query += ` ORDER BY e.employee_code ASC`;
 
-    const employees = db.prepare(query).all(...params);
+    const [employees] = await pool.execute(query, params);
 
     return NextResponse.json({ employees });
   } catch (error) {
@@ -52,15 +52,16 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const db = getDb();
+    const pool = getPool();
     const body = await request.json();
 
     // Generate employee code
-    const companyId = body.company_id || request?.cookies?.get('active_company')?.value || 'comp_uabiotech';
-    const company = db.prepare('SELECT code FROM companies WHERE id = ?').get(companyId);
-    const lastEmp = db.prepare(
-      "SELECT employee_code FROM employees WHERE company_id = ? ORDER BY employee_code DESC LIMIT 1"
-    ).get(companyId);
+    const companyId = body.company_id || request?.cookies?.get('active_company')?.value || '';
+    const [[company]] = await pool.execute('SELECT code FROM companies WHERE id = ?', [companyId]);
+    const [[lastEmp]] = await pool.execute(
+      "SELECT employee_code FROM employees WHERE company_id = ? ORDER BY employee_code DESC LIMIT 1",
+      [companyId]
+    );
 
     let nextNum = 1;
     if (lastEmp) {
@@ -92,26 +93,27 @@ export async function POST(request) {
     });
 
     const insertFields = ['id', ...fields];
-    db.prepare(
-      `INSERT INTO employees (${insertFields.join(', ')}) VALUES (${placeholders.join(', ')})`
-    ).run(...values);
+    await pool.execute(
+      `INSERT INTO employees (${insertFields.join(', ')}) VALUES (${placeholders.join(', ')})`,
+      values
+    );
 
     // Salary structure: prefer explicit components from client (manual entry).
     // Fall back to auto-breakdown using template settings if only ctc_annual is given.
     const hasExplicitComponents = Array.isArray(body.salary_components) && body.salary_components.length > 0;
 
     if (hasExplicitComponents || (body.ctc_annual && body.ctc_annual > 0)) {
-      const setting = (key, fallback) => {
-        const row = db.prepare('SELECT setting_value FROM system_settings WHERE setting_key = ?').get(key);
+      const setting = async (key, fallback) => {
+        const [[row]] = await pool.execute('SELECT setting_value FROM system_settings WHERE setting_key = ?', [key]);
         return row ? Number(row.setting_value) : fallback;
       };
-      const tBasicPct = setting('template_basic_pct', 50);
-      const tHraPct = setting('template_hra_pct', 40);
-      const tConv = setting('template_conv_amount', 1600);
-      const tMed = setting('template_med_amount', 1250);
+      const tBasicPct = await setting('template_basic_pct', 50);
+      const tHraPct = await setting('template_hra_pct', 40);
+      const tConv = await setting('template_conv_amount', 1600);
+      const tMed = await setting('template_med_amount', 1250);
 
       // Resolve the components by code
-      const allComps = db.prepare(`SELECT id, code FROM salary_components WHERE type='EARNING'`).all();
+      const [allComps] = await pool.execute(`SELECT id, code FROM salary_components WHERE type='EARNING'`);
       const codeToId = Object.fromEntries(allComps.map(c => [c.code, c.id]));
 
       let comps;
@@ -141,19 +143,20 @@ export async function POST(request) {
       const ctcMonthly = Math.round(ctcAnnual / 12);
 
       const structId = generateId();
-      db.prepare(
-        'INSERT INTO salary_structures (id, employee_id, ctc_annual, ctc_monthly, effective_from) VALUES (?, ?, ?, ?, ?)'
-      ).run(structId, id, ctcAnnual, ctcMonthly, body.joining_date || new Date().toISOString().split('T')[0]);
-
-      const insertDetail = db.prepare(
-        'INSERT INTO salary_structure_details (id, salary_structure_id, component_id, monthly_amount, annual_amount) VALUES (?, ?, ?, ?, ?)'
+      await pool.execute(
+        'INSERT INTO salary_structures (id, employee_id, ctc_annual, ctc_monthly, effective_from) VALUES (?, ?, ?, ?, ?)',
+        [structId, id, ctcAnnual, ctcMonthly, body.joining_date || new Date().toISOString().split('T')[0]]
       );
-      comps.forEach(c => {
-        insertDetail.run(generateId(), structId, c.component_id, c.monthly, c.monthly * 12);
-      });
+
+      for (const c of comps) {
+        await pool.execute(
+          'INSERT INTO salary_structure_details (id, salary_structure_id, component_id, monthly_amount, annual_amount) VALUES (?, ?, ?, ?, ?)',
+          [generateId(), structId, c.component_id, c.monthly, c.monthly * 12]
+        );
+      }
     }
 
-    const newEmployee = db.prepare('SELECT * FROM employees WHERE id = ?').get(id);
+    const [[newEmployee]] = await pool.execute('SELECT * FROM employees WHERE id = ?', [id]);
     return NextResponse.json({ employee: newEmployee, employeeCode }, { status: 201 });
   } catch (error) {
     console.error('POST /api/employees error:', error);

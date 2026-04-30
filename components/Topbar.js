@@ -15,7 +15,7 @@ export default function Topbar() {
 
   useEffect(() => {
     // Determine active company
-    const stored = localStorage.getItem('active_company') || 'comp_uabiotech';
+    const stored = localStorage.getItem('active_company') || '';
     setActiveCompany(stored);
 
     // Fetch Notifications
@@ -82,7 +82,7 @@ export default function Topbar() {
           {companies.length > 0 ? companies.map(c => (
             <option key={c.id} value={c.id}>{c.name}</option>
           )) : (
-            <option value="comp_uabiotech">UA BIOTECH</option>
+            <option value="">No Companies</option>
           )}
         </select>
 

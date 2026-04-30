@@ -9,7 +9,7 @@ export default function AuditLogsPage() {
 
   useEffect(() => {
     setLoading(true);
-    const params = new URLSearchParams({ company: localStorage.getItem('active_company') || 'comp_uabiotech', limit: '100' });
+    const params = new URLSearchParams({ company: localStorage.getItem('active_company') || '', limit: '100' });
     if (filter) params.set('action', filter);
     fetch(`/api/audit?${params}`)
       .then(r => r.json())

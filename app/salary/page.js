@@ -15,7 +15,7 @@ export default function SalaryPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/employees?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}&status=active`).then(r => r.json()),
+      fetch(`/api/employees?company=${localStorage.getItem('active_company') || ''}&status=active`).then(r => r.json()),
       fetch('/api/salary-components').then(r => r.json()),
     ]).then(([empData, compData]) => {
       setEmployees(empData.employees || []);

@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getPool } from '@/lib/db';
 
 // Payslip API — generate payslip data for a specific employee and month
 export async function GET(request) {
   try {
-    const db = getDb();
+    const pool = getPool();
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || 'comp_uabiotech';
+    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
     const employeeId = searchParams.get('employee');
     const month = parseInt(searchParams.get('month') || new Date().getMonth() + 1);
     const year = parseInt(searchParams.get('year') || new Date().getFullYear());
@@ -16,44 +16,45 @@ export async function GET(request) {
     }
 
     // Get employee details
-    const employee = db.prepare(`
+    const [[employee]] = await pool.execute(`
       SELECT e.*, d.name as department_name
       FROM employees e
       LEFT JOIN departments d ON e.department_id = d.id
       WHERE e.id = ?
-    `).get(employeeId);
+    `, [employeeId]);
 
     if (!employee) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
     // Get company
-    const company = db.prepare('SELECT * FROM companies WHERE id = ?').get(companyId);
+    const [[company]] = await pool.execute('SELECT * FROM companies WHERE id = ?', [companyId]);
 
     // Get payroll record
-    const payrollRecord = db.prepare(`
+    const [[payrollRecord]] = await pool.execute(`
       SELECT * FROM payroll
       WHERE employee_id = ? AND month = ? AND year = ?
-    `).get(employeeId, month, year);
+    `, [employeeId, month, year]);
 
     if (!payrollRecord) {
       return NextResponse.json({ error: 'No payroll processed for this month' }, { status: 404 });
     }
 
     // Get salary structure details
-    const salaryDetails = db.prepare(`
+    const [salaryDetails] = await pool.execute(`
       SELECT ssd.*, sc.name as component_name, sc.code as component_code, sc.type as component_type
       FROM salary_structures ss
       JOIN salary_structure_details ssd ON ssd.salary_structure_id = ss.id
       JOIN salary_components sc ON sc.id = ssd.component_id
       WHERE ss.employee_id = ?
       ORDER BY sc.display_order ASC
-    `).all(employeeId);
+    `, [employeeId]);
 
     // Get attendance
-    const attendance = db.prepare(
-      'SELECT * FROM attendance WHERE employee_id = ? AND month = ? AND year = ?'
-    ).get(employeeId, month, year);
+    const [[attendance]] = await pool.execute(
+      'SELECT * FROM attendance WHERE employee_id = ? AND month = ? AND year = ?',
+      [employeeId, month, year]
+    );
 
     // Build payslip
     const workingDays = attendance?.total_working_days || 22;
@@ -104,10 +105,10 @@ export async function GET(request) {
     return NextResponse.json({
       payslip: {
         company: {
-          name: company?.name || 'UA BIOTECH',
-          address: company?.address || 'Jabalpur, Madhya Pradesh',
-          pan: company?.pan_number || '',
-          tan: company?.tan_number || '',
+          name: company?.name || '',
+          address: company?.address || '',
+          pan: company?.pan || '',
+          tan: company?.tan || '',
         },
         employee: {
           name: employee.full_name,

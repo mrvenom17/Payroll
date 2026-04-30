@@ -96,8 +96,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/dashboard?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}`).then(r => r.json()),
-      fetch(`/api/payroll?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}&month=${new Date().getMonth() + 1}&year=${new Date().getFullYear()}`).then(r => r.json()),
+      fetch(`/api/dashboard?company=${localStorage.getItem('active_company') || ''}`).then(r => r.json()),
+      fetch(`/api/payroll?company=${localStorage.getItem('active_company') || ''}&month=${new Date().getMonth() + 1}&year=${new Date().getFullYear()}`).then(r => r.json()),
     ]).then(([dashData, payroll]) => {
       setData(dashData);
       setPayrollData(payroll);

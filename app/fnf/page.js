@@ -53,7 +53,7 @@ export default function FnfPage() {
 
   const fetchData = () => {
     setLoading(true);
-    fetch(`/api/fnf?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}`)
+    fetch(`/api/fnf?company=${localStorage.getItem('active_company') || ''}`)
       .then(r => r.json())
       .then(d => {
         setSettlements(d.settlements || []);
@@ -188,7 +188,7 @@ export default function FnfPage() {
                 icon: '🗑️',
               });
               if (!ok) return;
-              const res = await fetch(`/api/fnf?scope=all&company=${localStorage.getItem('active_company') || 'comp_uabiotech'}`, { method: 'DELETE' });
+              const res = await fetch(`/api/fnf?scope=all&company=${localStorage.getItem('active_company') || ''}`, { method: 'DELETE' });
               const d = await res.json();
               if (d.success) {
                 toast.success(`Cleared ${d.deleted} settlement${d.deleted === 1 ? '' : 's'}`);

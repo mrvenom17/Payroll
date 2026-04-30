@@ -14,7 +14,7 @@ export default function SalaryRegisterPage() {
 
   useEffect(() => {
     setLoading(true);
-    fetch(`/api/payroll?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}&month=${month}&year=${year}`)
+    fetch(`/api/payroll?company=${localStorage.getItem('active_company') || ''}&month=${month}&year=${year}`)
       .then(r => r.json())
       .then(d => { setRecords(d.records || []); setSummary(d.summary || {}); setLoading(false); });
   }, [month, year]);

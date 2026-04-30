@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getDb, generateId } from '@/lib/db';
+import { getPool, generateId } from '@/lib/db';
 
 export async function GET(request) {
   try {
-    const db = getDb();
+    const pool = getPool();
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || 'comp_uabiotech';
+    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
     const status = searchParams.get('status') || '';
 
     let query = `
@@ -22,7 +22,7 @@ export async function GET(request) {
     }
 
     query += ' ORDER BY l.created_at DESC';
-    const loans = db.prepare(query).all(...params);
+    const [loans] = await pool.execute(query, params);
 
     const summary = {
       totalActive: loans.filter(l => l.status === 'ACTIVE').length,
@@ -38,16 +38,16 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const db = getDb();
+    const pool = getPool();
     const body = await request.json();
 
     const id = generateId();
     const totalEmis = Math.ceil(body.loan_amount / body.emi_amount);
-    
-    db.prepare(`
+
+    await pool.execute(`
       INSERT INTO loans (id, employee_id, loan_type, loan_amount, emi_amount, total_emis, balance_outstanding, start_date, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-    `).run(id, body.employee_id, body.loan_type, body.loan_amount, body.emi_amount, totalEmis, body.loan_amount, body.start_date || new Date().toISOString().split('T')[0]);
+    `, [id, body.employee_id, body.loan_type, body.loan_amount, body.emi_amount, totalEmis, body.loan_amount, body.start_date || new Date().toISOString().split('T')[0]]);
 
     return NextResponse.json({ success: true, id });
   } catch (error) {

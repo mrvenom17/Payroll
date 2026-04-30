@@ -1,28 +1,32 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getPool } from '@/lib/db';
 
 export async function GET(request) {
   try {
-    const db = getDb();
+    const pool = getPool();
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || 'comp_uabiotech';
+    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
 
     // Active employees count
-    const totalActive = db.prepare(
-      'SELECT COUNT(*) as count FROM employees WHERE company_id = ? AND is_active = 1'
-    ).get(companyId).count;
+    const [[activeRow]] = await pool.execute(
+      'SELECT COUNT(*) as count FROM employees WHERE company_id = ? AND is_active = 1',
+      [companyId]
+    );
+    const totalActive = activeRow.count;
 
-    const totalInactive = db.prepare(
-      'SELECT COUNT(*) as count FROM employees WHERE company_id = ? AND is_active = 0'
-    ).get(companyId).count;
+    const [[inactiveRow]] = await pool.execute(
+      'SELECT COUNT(*) as count FROM employees WHERE company_id = ? AND is_active = 0',
+      [companyId]
+    );
+    const totalInactive = inactiveRow.count;
 
     // Current month attendance summary
     const now = new Date();
     const currentMonth = now.getMonth() + 1;
     const currentYear = now.getFullYear();
 
-    const attendanceSummary = db.prepare(`
-      SELECT 
+    const [[attendanceSummary]] = await pool.execute(`
+      SELECT
         SUM(present_days) as total_present,
         SUM(absent_days) as total_absent,
         SUM(paid_leaves) as total_leaves,
@@ -30,21 +34,21 @@ export async function GET(request) {
       FROM attendance a
       JOIN employees e ON a.employee_id = e.id
       WHERE e.company_id = ? AND a.month = ? AND a.year = ?
-    `).get(companyId, currentMonth, currentYear);
+    `, [companyId, currentMonth, currentYear]);
 
     // Salary summary
-    const salarySummary = db.prepare(`
-      SELECT 
+    const [[salarySummary]] = await pool.execute(`
+      SELECT
         SUM(ss.ctc_monthly) as total_monthly_ctc,
         COUNT(*) as employees_with_salary
       FROM salary_structures ss
       JOIN employees e ON ss.employee_id = e.id
       WHERE e.company_id = ? AND e.is_active = 1
-    `).get(companyId);
+    `, [companyId]);
 
     // Payroll summary for current month
-    const payrollSummary = db.prepare(`
-      SELECT 
+    const [[payrollSummary]] = await pool.execute(`
+      SELECT
         SUM(CASE WHEN status = 'APPROVED' OR status = 'PAID' THEN net_salary ELSE 0 END) as total_paid,
         SUM(CASE WHEN status = 'DRAFT' THEN net_salary ELSE 0 END) as total_pending,
         COUNT(CASE WHEN status = 'APPROVED' OR status = 'PAID' THEN 1 END) as paid_count,
@@ -52,69 +56,69 @@ export async function GET(request) {
       FROM payroll p
       JOIN employees e ON p.employee_id = e.id
       WHERE e.company_id = ? AND p.month = ? AND p.year = ?
-    `).get(companyId, currentMonth, currentYear);
+    `, [companyId, currentMonth, currentYear]);
 
     // Probation employees
-    const onProbation = db.prepare(`
+    const [onProbation] = await pool.execute(`
       SELECT id, employee_code, full_name, designation, probation_end_date, joining_date
       FROM employees
       WHERE company_id = ? AND is_active = 1 AND probation_end_date IS NOT NULL
-      AND probation_end_date >= date('now')
+      AND probation_end_date >= CURDATE()
       ORDER BY probation_end_date ASC
-    `).all(companyId);
+    `, [companyId]);
 
     // Today's birthdays
-    const todayBirthdays = db.prepare(`
+    const [todayBirthdays] = await pool.execute(`
       SELECT id, employee_code, full_name, designation, work_location, date_of_birth
       FROM employees
       WHERE company_id = ? AND is_active = 1
-      AND strftime('%m-%d', date_of_birth) = strftime('%m-%d', 'now')
-    `).all(companyId);
+      AND DATE_FORMAT(date_of_birth, '%m-%d') = DATE_FORMAT(CURDATE(), '%m-%d')
+    `, [companyId]);
 
     // Upcoming birthdays (next 7 days)
-    const upcomingBirthdays = db.prepare(`
+    const [upcomingBirthdays] = await pool.execute(`
       SELECT id, employee_code, full_name, designation, work_location, date_of_birth
       FROM employees
       WHERE company_id = ? AND is_active = 1
       AND (
-        (strftime('%m-%d', date_of_birth) > strftime('%m-%d', 'now')
-         AND strftime('%m-%d', date_of_birth) <= strftime('%m-%d', 'now', '+7 days'))
+        (DATE_FORMAT(date_of_birth, '%m-%d') > DATE_FORMAT(CURDATE(), '%m-%d')
+         AND DATE_FORMAT(date_of_birth, '%m-%d') <= DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 7 DAY), '%m-%d'))
         OR
-        (strftime('%m-%d', 'now', '+7 days') < strftime('%m-%d', 'now')
-         AND (strftime('%m-%d', date_of_birth) > strftime('%m-%d', 'now')
-              OR strftime('%m-%d', date_of_birth) <= strftime('%m-%d', 'now', '+7 days')))
+        (DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 7 DAY), '%m-%d') < DATE_FORMAT(CURDATE(), '%m-%d')
+         AND (DATE_FORMAT(date_of_birth, '%m-%d') > DATE_FORMAT(CURDATE(), '%m-%d')
+              OR DATE_FORMAT(date_of_birth, '%m-%d') <= DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 7 DAY), '%m-%d')))
       )
-      ORDER BY strftime('%m-%d', date_of_birth) ASC
+      ORDER BY DATE_FORMAT(date_of_birth, '%m-%d') ASC
       LIMIT 5
-    `).all(companyId);
+    `, [companyId]);
 
     // Work anniversaries this month
-    const anniversaries = db.prepare(`
+    const [anniversaries] = await pool.execute(`
       SELECT id, employee_code, full_name, designation, joining_date,
-        (strftime('%Y', 'now') - strftime('%Y', joining_date)) as years
+        (YEAR(CURDATE()) - YEAR(joining_date)) as years
       FROM employees
       WHERE company_id = ? AND is_active = 1
-      AND strftime('%m', joining_date) = strftime('%m', 'now')
-      AND strftime('%Y', joining_date) != strftime('%Y', 'now')
-      ORDER BY strftime('%d', joining_date) ASC
-    `).all(companyId);
+      AND MONTH(joining_date) = MONTH(CURDATE())
+      AND YEAR(joining_date) != YEAR(CURDATE())
+      ORDER BY DAY(joining_date) ASC
+    `, [companyId]);
 
     // Department-wise count
-    const departmentWise = db.prepare(`
+    const [departmentWise] = await pool.execute(`
       SELECT d.name, d.code, COUNT(e.id) as count
       FROM departments d
       LEFT JOIN employees e ON e.department_id = d.id AND e.is_active = 1
       WHERE d.company_id = ?
-      GROUP BY d.id
+      GROUP BY d.id, d.name, d.code
       ORDER BY count DESC
-    `).all(companyId);
+    `, [companyId]);
 
     // Employment type breakdown
-    const employmentTypes = db.prepare(`
+    const [employmentTypes] = await pool.execute(`
       SELECT employment_type, COUNT(*) as count
       FROM employees WHERE company_id = ? AND is_active = 1
       GROUP BY employment_type
-    `).all(companyId);
+    `, [companyId]);
 
     return NextResponse.json({
       totalActive,

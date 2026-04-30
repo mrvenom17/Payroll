@@ -13,7 +13,7 @@ export default function NewEmployeePage() {
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState(1);
   const [form, setForm] = useState({
-    company_id: 'comp_uabiotech',
+    company_id: '',
     full_name: '', father_spouse_name: '',
     date_of_birth: '', gender: 'Male',
     mobile_number: '', email_id: '',
@@ -55,7 +55,7 @@ export default function NewEmployeePage() {
   }, []);
 
   useEffect(() => {
-    const company = localStorage.getItem('active_company') || 'comp_uabiotech';
+    const company = localStorage.getItem('active_company') || '';
     setForm(prev => ({ ...prev, company_id: company }));
     Promise.all([
       fetch(`/api/departments?company=${company}`).then(r => r.json()),

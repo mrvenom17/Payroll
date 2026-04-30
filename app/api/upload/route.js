@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDb } from '@/lib/db';
+import { getPool } from '@/lib/db';
 import crypto from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
@@ -8,15 +8,15 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const entity_id = searchParams.get('entity_id');
-    const db = getDb();
-    
+    const pool = getPool();
+
     let docs;
     if (entity_id) {
-      docs = db.prepare(`SELECT * FROM documents WHERE entity_id = ? ORDER BY created_at DESC`).all(entity_id);
+      [docs] = await pool.execute(`SELECT * FROM documents WHERE entity_id = ? ORDER BY created_at DESC`, [entity_id]);
     } else {
-      docs = db.prepare(`SELECT * FROM documents ORDER BY created_at DESC`).all();
+      [docs] = await pool.execute(`SELECT * FROM documents ORDER BY created_at DESC`);
     }
-    
+
     return NextResponse.json({ documents: docs });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -38,22 +38,22 @@ export async function POST(request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const id = 'doc_' + crypto.randomBytes(6).toString('hex');
     const safeFilename = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-    
+
     // Create folders
     const uploadDir = path.join(process.cwd(), 'public', 'uploads', entity_type || 'general', entity_id);
     await fs.mkdir(uploadDir, { recursive: true });
-    
+
     const finalFilename = `${tag}_${id}_${safeFilename}`;
     const filePath = path.join(uploadDir, finalFilename);
     const publicUrl = `/uploads/${entity_type || 'general'}/${entity_id}/${finalFilename}`;
-    
+
     await fs.writeFile(filePath, buffer);
 
-    const db = getDb();
-    db.prepare(`
+    const pool = getPool();
+    await pool.execute(`
       INSERT INTO documents (id, entity_type, entity_id, file_name, file_path, tag)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(id, entity_type || 'general', entity_id, file.name, publicUrl, tag);
+    `, [id, entity_type || 'general', entity_id, file.name, publicUrl, tag]);
 
     return NextResponse.json({ success: true, document: { id, publicUrl, file_name: file.name, tag } });
   } catch (error) {

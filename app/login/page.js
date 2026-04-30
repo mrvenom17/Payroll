@@ -5,8 +5,8 @@ import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('admin@uabiotech.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -75,7 +75,7 @@ export default function LoginPage() {
         </form>
         
         <div style={{ textAlign: 'center', marginTop: 24, fontSize: 12, color: 'var(--text-tertiary)' }}>
-          <p>Demo Credentials: <b>admin@uabiotech.com</b> / <b>admin123</b></p>
+          <p>Default: <b>admin@payroll.local</b> / <b>Admin@123</b></p>
         </div>
       </div>
       

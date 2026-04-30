@@ -33,7 +33,7 @@ export default function EmployeesPage() {
 
   const reload = () => {
     const params = new URLSearchParams({
-      company: localStorage.getItem('active_company') || 'comp_uabiotech',
+      company: localStorage.getItem('active_company') || '',
       status: statusFilter,
     });
     if (search) params.set('search', search);
@@ -63,7 +63,7 @@ export default function EmployeesPage() {
   };
 
   useEffect(() => {
-    fetch(`/api/departments?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}`)
+    fetch(`/api/departments?company=${localStorage.getItem('active_company') || ''}`)
       .then(r => r.json())
       .then(d => setDepartments(d.departments || []));
   }, []);
@@ -71,7 +71,7 @@ export default function EmployeesPage() {
   useEffect(() => {
     setLoading(true);
     const params = new URLSearchParams({
-      company: localStorage.getItem('active_company') || 'comp_uabiotech',
+      company: localStorage.getItem('active_company') || '',
       status: statusFilter,
     });
     if (search) params.set('search', search);

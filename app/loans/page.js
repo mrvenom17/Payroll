@@ -19,8 +19,8 @@ export default function LoansPage() {
   const fetchData = () => {
     setLoading(true);
     Promise.all([
-      fetch(`/api/loans?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}${filter ? `&status=${filter}` : ''}`).then(r => r.json()),
-      fetch(`/api/employees?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}&status=active`).then(r => r.json()),
+      fetch(`/api/loans?company=${localStorage.getItem('active_company') || ''}${filter ? `&status=${filter}` : ''}`).then(r => r.json()),
+      fetch(`/api/employees?company=${localStorage.getItem('active_company') || ''}&status=active`).then(r => r.json()),
     ]).then(([loanData, empData]) => {
       setLoans(loanData.loans || []);
       setSummary(loanData.summary || {});

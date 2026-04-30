@@ -28,7 +28,7 @@ export default function MinWageCheckPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/employees?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}&status=active`).then(r => r.json()),
+      fetch(`/api/employees?company=${localStorage.getItem('active_company') || ''}&status=active`).then(r => r.json()),
       fetch('/api/settings/integrations').then(r => r.json()),
     ]).then(([empData, settings]) => {
       setEmployees(empData.employees || []);

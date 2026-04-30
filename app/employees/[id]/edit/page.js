@@ -18,8 +18,8 @@ export default function EditEmployeePage({ params }) {
   useEffect(() => {
     Promise.all([
       fetch(`/api/employees/${id}`).then(r => r.json()),
-      fetch(`/api/departments?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}`).then(r => r.json()),
-      fetch(`/api/employees?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}&status=active`).then(r => r.json()),
+      fetch(`/api/departments?company=${localStorage.getItem('active_company') || ''}`).then(r => r.json()),
+      fetch(`/api/employees?company=${localStorage.getItem('active_company') || ''}&status=active`).then(r => r.json()),
     ]).then(([empData, deptData, mgrData]) => {
       setForm(empData.employee || {});
       setDepartments(deptData.departments || []);

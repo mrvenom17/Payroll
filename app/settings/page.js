@@ -21,7 +21,7 @@ export default function SettingsPage() {
   const [editingTemplate, setEditingTemplate] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/dashboard?company=${localStorage.getItem('active_company') || 'comp_uabiotech'}`)
+    fetch(`/api/dashboard?company=${localStorage.getItem('active_company') || ''}`)
       .then(r => r.json())
       .then(d => {
         setCompany({

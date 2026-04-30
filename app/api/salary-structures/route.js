@@ -1,26 +1,26 @@
 import { NextResponse } from 'next/server';
-import { getDb, generateId } from '@/lib/db';
+import { getPool, generateId } from '@/lib/db';
 
 // GET — fetch structure for an employee
 // Query: ?employee=emp_id
 export async function GET(request) {
   try {
-    const db = getDb();
+    const pool = getPool();
     const { searchParams } = new URL(request.url);
     const employeeId = searchParams.get('employee');
     if (!employeeId) return NextResponse.json({ error: 'employee required' }, { status: 400 });
 
-    const structure = db.prepare('SELECT * FROM salary_structures WHERE employee_id = ?').get(employeeId);
+    const [[structure]] = await pool.execute('SELECT * FROM salary_structures WHERE employee_id = ?', [employeeId]);
     if (!structure) return NextResponse.json({ structure: null, components: [] });
 
-    const components = db.prepare(`
+    const [components] = await pool.execute(`
       SELECT ssd.id, ssd.component_id, ssd.monthly_amount, ssd.annual_amount,
              sc.code, sc.name, sc.type, sc.display_order
       FROM salary_structure_details ssd
       JOIN salary_components sc ON sc.id = ssd.component_id
       WHERE ssd.salary_structure_id = ?
       ORDER BY sc.display_order ASC
-    `).all(structure.id);
+    `, [structure.id]);
 
     return NextResponse.json({ structure, components });
   } catch (e) {
@@ -37,7 +37,7 @@ export async function GET(request) {
 // }
 export async function PUT(request) {
   try {
-    const db = getDb();
+    const pool = getPool();
     const body = await request.json();
     const { employee_id } = body;
     if (!employee_id) return NextResponse.json({ error: 'employee_id required' }, { status: 400 });
@@ -46,7 +46,7 @@ export async function PUT(request) {
     }
 
     // Resolve components by code or id
-    const allComponents = db.prepare(`SELECT id, code, type FROM salary_components WHERE type = 'EARNING'`).all();
+    const [allComponents] = await pool.execute(`SELECT id, code, type FROM salary_components WHERE type = 'EARNING'`);
     const byCode = Object.fromEntries(allComponents.map(c => [c.code, c]));
     const byId = Object.fromEntries(allComponents.map(c => [c.id, c]));
 
@@ -66,41 +66,50 @@ export async function PUT(request) {
     const monthly = Math.round(annualTotal / 12);
     const effectiveFrom = body.effective_from || new Date().toISOString().split('T')[0];
 
-    const existing = db.prepare('SELECT id FROM salary_structures WHERE employee_id = ?').get(employee_id);
+    const [[existing]] = await pool.execute('SELECT id, ctc_annual FROM salary_structures WHERE employee_id = ?', [employee_id]);
 
-    const txn = db.transaction(() => {
-      let structId = existing?.id;
-      if (structId) {
-        db.prepare(`UPDATE salary_structures SET ctc_annual = ?, ctc_monthly = ?, effective_from = ?, updated_at = datetime('now') WHERE id = ?`)
-          .run(annualTotal, monthly, effectiveFrom, structId);
-        db.prepare('DELETE FROM salary_structure_details WHERE salary_structure_id = ?').run(structId);
+    const conn = await pool.getConnection();
+    let structId;
+    try {
+      await conn.beginTransaction();
+
+      if (existing) {
+        structId = existing.id;
+        await conn.execute(`UPDATE salary_structures SET ctc_annual = ?, ctc_monthly = ?, effective_from = ?, updated_at = NOW() WHERE id = ?`,
+          [annualTotal, monthly, effectiveFrom, structId]);
+        await conn.execute('DELETE FROM salary_structure_details WHERE salary_structure_id = ?', [structId]);
       } else {
         structId = generateId();
-        db.prepare('INSERT INTO salary_structures (id, employee_id, ctc_annual, ctc_monthly, effective_from) VALUES (?, ?, ?, ?, ?)')
-          .run(structId, employee_id, annualTotal, monthly, effectiveFrom);
+        await conn.execute('INSERT INTO salary_structures (id, employee_id, ctc_annual, ctc_monthly, effective_from) VALUES (?, ?, ?, ?, ?)',
+          [structId, employee_id, annualTotal, monthly, effectiveFrom]);
       }
-      const insertDetail = db.prepare(
-        'INSERT INTO salary_structure_details (id, salary_structure_id, component_id, monthly_amount, annual_amount) VALUES (?, ?, ?, ?, ?)'
-      );
-      for (const c of resolved) {
-        insertDetail.run(generateId(), structId, c.component_id, c.monthly_amount, c.monthly_amount * 12);
-      }
-      return structId;
-    });
 
-    const structId = txn();
+      for (const c of resolved) {
+        await conn.execute(
+          'INSERT INTO salary_structure_details (id, salary_structure_id, component_id, monthly_amount, annual_amount) VALUES (?, ?, ?, ?, ?)',
+          [generateId(), structId, c.component_id, c.monthly_amount, c.monthly_amount * 12]
+        );
+      }
+
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback();
+      throw err;
+    } finally {
+      conn.release();
+    }
 
     // Revision log
     try {
-      const prevCTC = existing ? db.prepare('SELECT ctc_annual FROM salary_structures WHERE id = ?').get(existing.id)?.ctc_annual : 0;
+      const prevCTC = existing?.ctc_annual || 0;
       if (existing && prevCTC !== annualTotal) {
-        db.prepare(`INSERT INTO salary_revisions (id, employee_id, old_ctc, new_ctc, effective_from, reason) VALUES (?, ?, ?, ?, ?, ?)`)
-          .run(generateId(), employee_id, prevCTC || 0, annualTotal, effectiveFrom, 'Structure edit');
+        await pool.execute(`INSERT INTO salary_revisions (id, employee_id, old_ctc, new_ctc, effective_from, reason) VALUES (?, ?, ?, ?, ?, ?)`,
+          [generateId(), employee_id, prevCTC || 0, annualTotal, effectiveFrom, 'Structure edit']);
       }
-      const emp = db.prepare('SELECT company_id FROM employees WHERE id = ?').get(employee_id);
-      db.prepare(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-        .run(generateId(), emp?.company_id, existing ? 'SALARY_STRUCTURE_UPDATED' : 'SALARY_STRUCTURE_CREATED', 'salary_structure', structId,
-          JSON.stringify({ employee_id, ctc_annual: annualTotal, components: resolved.length }), 'admin');
+      const [[emp]] = await pool.execute('SELECT company_id FROM employees WHERE id = ?', [employee_id]);
+      await pool.execute(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [generateId(), emp?.company_id, existing ? 'SALARY_STRUCTURE_UPDATED' : 'SALARY_STRUCTURE_CREATED', 'salary_structure', structId,
+          JSON.stringify({ employee_id, ctc_annual: annualTotal, components: resolved.length }), 'admin']);
     } catch (e) { console.error('audit:', e.message); }
 
     return NextResponse.json({ success: true, structure_id: structId, ctc_annual: annualTotal, ctc_monthly: monthly });
