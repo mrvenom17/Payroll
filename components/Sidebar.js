@@ -18,6 +18,7 @@ const navSections = [
       { href: '/masters/departments', label: 'Departments', icon: '🏢' },
       { href: '/masters/designations', label: 'Designations', icon: '📋' },
       { href: '/masters/salary-components', label: 'Salary Components', icon: '⚙️' },
+      { href: '/salary-revisions', label: 'Salary Revisions', icon: '📈' },
     ],
   },
   {
@@ -53,6 +54,8 @@ const navSections = [
   {
     title: 'System',
     links: [
+      { href: '/companies', label: 'Companies', icon: '🏢' },
+      { href: '/users', label: 'User Management', icon: '🔐' },
       { href: '/audit', label: 'Audit Logs', icon: '📋' },
       { href: '/settings', label: 'Settings', icon: '⚙️' },
     ],

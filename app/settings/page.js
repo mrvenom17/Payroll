@@ -22,30 +22,43 @@ export default function SettingsPage() {
   const [editingTemplate, setEditingTemplate] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/dashboard?company=${localStorage.getItem('active_company') || ''}`)
-      .then(r => r.json())
-      .then(d => {
-        setCompany({
-          name: 'UA BIOTECH',
-          legal_name: 'UA BIOTECH PRIVATE LIMITED',
-          cin: 'U01100MP2020PTC012345',
-          pan: 'AABCU1234A',
-          tan: 'JBPU01234A',
-          gstin: '23AABCU1234A1Z5',
-          address: 'Plot No. 45, Industrial Area, Adhartal, Jabalpur - 482004, Madhya Pradesh',
-          phone: '0761-2680100',
-          email: 'hr@uabiotech.com',
-          website: 'www.uabiotech.com',
-          pf_establishment_code: 'MPJBP0012345',
-          esic_code: '23000123450001234',
-          pt_registration: 'PT/MP/JBP/2020/0045',
-          lwf_number: 'LWF/MP/2020/0089',
-          payroll_day: 3,
-          leave_year_start: 'January',
-          financial_year: '2025-2026',
-          working_days_per_week: 5,
-        });
-      });
+    const companyId = localStorage.getItem('active_company') || '';
+    if (companyId) {
+      fetch(`/api/companies`)
+        .then(r => r.json())
+        .then(d => {
+          const found = (d.companies || []).find(c => c.id === companyId);
+          if (found) {
+            setCompany({
+              id: found.id,
+              name: found.name || '',
+              code: found.code || '',
+              legal_name: found.name || '',
+              cin: '',
+              pan: found.pan || '',
+              tan: found.tan || '',
+              gstin: found.gstin || '',
+              address: found.address || '',
+              phone: '',
+              email: '',
+              website: '',
+              pf_establishment_code: found.pf_registration || '',
+              esic_code: found.esic_registration || '',
+              pt_registration: '',
+              lwf_number: '',
+              payroll_day: 3,
+              leave_year_start: 'January',
+              financial_year: '2025-2026',
+              working_days_per_week: 5,
+            });
+          } else {
+            setCompany({ name: '', code: '', legal_name: '', cin: '', pan: '', tan: '', gstin: '', address: '', phone: '', email: '', website: '', pf_establishment_code: '', esic_code: '', pt_registration: '', lwf_number: '', payroll_day: 3, leave_year_start: 'January', financial_year: '2025-2026', working_days_per_week: 5 });
+          }
+        })
+        .catch(() => setCompany({ name: '', code: '', legal_name: '', cin: '', pan: '', tan: '', gstin: '', address: '', phone: '', email: '', website: '', pf_establishment_code: '', esic_code: '', pt_registration: '', lwf_number: '', payroll_day: 3, leave_year_start: 'January', financial_year: '2025-2026', working_days_per_week: 5 }));
+    } else {
+      setCompany({ name: '', code: '', legal_name: '', cin: '', pan: '', tan: '', gstin: '', address: '', phone: '', email: '', website: '', pf_establishment_code: '', esic_code: '', pt_registration: '', lwf_number: '', payroll_day: 3, leave_year_start: 'January', financial_year: '2025-2026', working_days_per_week: 5 });
+    }
 
     fetch('/api/settings/integrations')
       .then(r => r.json())
@@ -59,9 +72,28 @@ export default function SettingsPage() {
   const save = async () => {
     setSaving(true);
     
-    // Save Generic Settings 
-    // In a real app we would save company settings too.
-    
+    // Save company profile to DB if company exists
+    const companyId = localStorage.getItem('active_company') || '';
+    if (companyId && company) {
+      try {
+        await fetch('/api/companies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: companyId,
+            name: company.name,
+            code: company.code,
+            address: company.address,
+            gstin: company.gstin,
+            pan: company.pan,
+            tan: company.tan,
+            pf_registration: company.pf_establishment_code,
+            esic_registration: company.esic_code,
+          }),
+        });
+      } catch(e) { console.error('Company save error:', e); }
+    }
+
     // Save Integrations
     try {
       await fetch('/api/settings/integrations', {
@@ -75,7 +107,7 @@ export default function SettingsPage() {
       setSaving(false);
       setMessage('Settings saved successfully');
       setTimeout(() => setMessage(''), 3000);
-    }, 800);
+    }, 400);
   };
 
   const tabs = [

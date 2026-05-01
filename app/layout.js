@@ -5,7 +5,7 @@ import Providers from '@/components/Providers';
 
 export const metadata = {
   title: 'Payroll Management System',
-  description: 'Comprehensive India-compliant payroll management system for UA BIOTECH & ANAGHA — PF, ESIC, TDS, Professional Tax, FNF Settlement',
+  description: 'Comprehensive India-compliant payroll management system — PF, ESIC, TDS, Professional Tax, FNF Settlement, Multi-tenancy',
 };
 
 export default function RootLayout({ children }) {

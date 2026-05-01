@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useToast } from '@/components/Toast';
 import { useConfirm } from '@/components/ConfirmModal';
 
@@ -224,7 +225,7 @@ export default function FnfPage() {
               <tbody>
                 {exitedWithoutFnf.map(emp => (
                   <tr key={emp.id}>
-                    <td><div><strong>{emp.full_name}</strong></div><div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{emp.employee_code}</div></td>
+                    <td><div><Link href={`/employees/${emp.id}`} style={{ fontWeight: 700, color: 'var(--primary)', textDecoration: 'none' }}>{emp.full_name}</Link></div><div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{emp.employee_code}</div></td>
                     <td>{emp.designation || '—'}</td>
                     <td>{fmtDate(emp.joining_date)}</td>
                     <td className="text-danger">{fmtDate(emp.exit_date)}</td>
@@ -269,7 +270,7 @@ export default function FnfPage() {
                 {settlements.map(s => (
                   <tr key={s.id}>
                     <td>
-                      <div><strong>{s.full_name}</strong></div>
+                      <Link href={`/employees/${s.employee_id}`} style={{ fontWeight: 700, color: 'var(--primary)', textDecoration: 'none' }}>{s.full_name}</Link>
                       <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{s.employee_code}</div>
                     </td>
                     <td>{fmtDate(s.last_working_date)}</td>

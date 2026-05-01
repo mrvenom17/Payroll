@@ -299,7 +299,7 @@ export default function PayrollPage() {
                 {records.map(r => (
                   <tr key={r.id}>
                     <td style={{ position: 'sticky', left: 0, background: 'white', zIndex: 1, minWidth: 160 }}>
-                      <div><strong>{r.full_name}</strong></div>
+                      <Link href={`/employees/${r.employee_id}`} style={{ textDecoration: 'none', color: 'var(--primary)' }}><strong>{r.full_name}</strong></Link>
                       <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{r.employee_code}</div>
                     </td>
                     <td>{r.paid_days}/{r.total_working_days}</td>

@@ -38,16 +38,22 @@ export default function EmployeeDetailPage({ params }) {
   const [allComponents, setAllComponents] = useState([]);
   const [structForm, setStructForm] = useState({ effective_from: '', amounts: {} });
   const [savingStruct, setSavingStruct] = useState(false);
+  const [payrollHistory, setPayrollHistory] = useState([]);
+  const [salaryRevisions, setSalaryRevisions] = useState([]);
 
   useEffect(() => {
     Promise.all([
       fetch(`/api/employees/${id}`).then(r => r.json()),
       fetch(`/api/investments?employee_id=${id}`).then(r => r.json()),
-      fetch(`/api/upload?entity_id=${id}`).then(r => r.json())
-    ]).then(([empData, invData, docData]) => {
+      fetch(`/api/upload?entity_id=${id}`).then(r => r.json()),
+      fetch(`/api/payroll?company=${localStorage.getItem('active_company') || ''}&year=${new Date().getFullYear()}`).then(r => r.json()).catch(() => ({ records: [] })),
+      fetch(`/api/salary-revisions?company=${localStorage.getItem('active_company') || ''}&employee_id=${id}`).then(r => r.json()).catch(() => ({ revisions: [] })),
+    ]).then(([empData, invData, docData, payrollData, revData]) => {
       setData(empData);
       setInvestments(invData.declarations || []);
       setDocuments(docData.documents || []);
+      setPayrollHistory((payrollData.records || []).filter(r => r.employee_id === id));
+      setSalaryRevisions(revData.revisions || []);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, [id]);
@@ -71,6 +77,8 @@ export default function EmployeeDetailPage({ params }) {
     { id: 'bank', label: '🏦 Bank', icon: '🏦' },
     { id: 'attendance', label: '📅 Attendance', icon: '📅' },
     { id: 'investments', label: '📈 Investments', icon: '📈' },
+    { id: 'payroll_history', label: '📊 Payroll', icon: '📊' },
+    { id: 'revisions', label: '💳 Revisions', icon: '💳' },
     { id: 'documents', label: '📂 Documents', icon: '📂' },
   ];
 
@@ -195,6 +203,11 @@ export default function EmployeeDetailPage({ params }) {
           <Link href={`/employees/${id}/edit`} className="btn" style={{ background: 'rgba(255,255,255,0.15)', color: 'white', border: '1px solid rgba(255,255,255,0.2)' }}>
             ✏️ Edit
           </Link>
+          {!emp.is_active && (
+            <Link href="/fnf" className="btn" style={{ background: 'rgba(245,158,11,0.25)', color: 'white', border: '1px solid rgba(245,158,11,0.35)' }}>
+              📝 FNF
+            </Link>
+          )}
           {emp.is_active && (
             <button
               onClick={async () => {
@@ -552,6 +565,95 @@ export default function EmployeeDetailPage({ params }) {
                   <button type="submit" className="btn btn-success" disabled={savingInv}>{savingInv ? '⏳ Saving...' : '💾 Save Declarations'}</button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {activeTab === 'payroll_history' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700 }}>📊 Payroll History</h3>
+                <Link href={`/payslip?employee=${id}`} className="btn btn-outline btn-sm">🧾 View Payslips</Link>
+              </div>
+              {payrollHistory.length > 0 ? (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Month</th>
+                      <th style={{ textAlign: 'right' }}>Gross</th>
+                      <th style={{ textAlign: 'right' }}>Deductions</th>
+                      <th style={{ textAlign: 'right' }}>Net Salary</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payrollHistory.map(p => {
+                      const months = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      return (
+                        <tr key={p.id}>
+                          <td style={{ fontWeight: 600 }}>{months[p.month]} {p.year}</td>
+                          <td className="currency text-right text-success">{formatCurrency(p.gross_earnings)}</td>
+                          <td className="currency text-right text-danger">{formatCurrency(p.total_deductions)}</td>
+                          <td className="currency text-right" style={{ fontWeight: 800, color: 'var(--primary)' }}>{formatCurrency(p.net_salary)}</td>
+                          <td>
+                            <span className={`badge ${p.status === 'PAID' ? 'badge-success' : p.status === 'APPROVED' ? 'badge-info' : 'badge-warning'}`}>{p.status}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="table-empty">
+                  <div className="table-empty-icon">📊</div>
+                  <p>No payroll records found</p>
+                  <Link href="/payroll" className="btn btn-primary btn-sm" style={{ marginTop: 12 }}>Go to Payroll →</Link>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'revisions' && (
+            <div>
+              <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>💳 Salary Revision History</h3>
+              {salaryRevisions.length > 0 ? (
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'right' }}>Old CTC</th>
+                      <th style={{ textAlign: 'right' }}>New CTC</th>
+                      <th style={{ textAlign: 'right' }}>Increment</th>
+                      <th>Effective From</th>
+                      <th>Reason</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {salaryRevisions.map(rev => {
+                      const inc = parseFloat(rev.increment_pct);
+                      return (
+                        <tr key={rev.id}>
+                          <td className="currency text-right" style={{ color: 'var(--text-tertiary)' }}>{formatCurrency(rev.old_ctc)}</td>
+                          <td className="currency text-right font-bold">{formatCurrency(rev.new_ctc)}</td>
+                          <td style={{ textAlign: 'right' }}>
+                            <span className={`badge ${!isNaN(inc) && inc > 0 ? 'badge-success' : 'badge-danger'}`}>
+                              {!isNaN(inc) && inc > 0 ? '↑' : '↓'} {rev.increment_pct}%
+                            </span>
+                          </td>
+                          <td>{formatDate(rev.effective_from)}</td>
+                          <td style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{rev.reason || '—'}</td>
+                          <td style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{formatDate(rev.created_at)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="table-empty">
+                  <div className="table-empty-icon">💳</div>
+                  <p>No salary revisions recorded</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 8 }}>Revisions are auto-tracked when salary structures are updated</p>
+                </div>
+              )}
             </div>
           )}
 

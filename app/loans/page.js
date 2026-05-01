@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
 const fmt = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
 
@@ -101,7 +102,7 @@ export default function LoansPage() {
                 const progress = l.loan_amount > 0 ? Math.round(((l.loan_amount - l.balance_outstanding) / l.loan_amount) * 100) : 0;
                 return (
                   <tr key={l.id}>
-                    <td><div><strong>{l.full_name}</strong></div><div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{l.employee_code}</div></td>
+                    <td><div><Link href={`/employees/${l.employee_id}`} style={{ fontWeight: 700, color: 'var(--primary)', textDecoration: 'none' }}>{l.full_name}</Link></div><div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{l.employee_code}</div></td>
                     <td><span className={`badge ${['Imprest Money','Advance','Festival Advance'].includes(l.loan_type) ? 'badge-info' : l.loan_type === 'Personal Loan' ? 'badge-warning' : 'badge-primary'}`}>{l.loan_type}</span></td>
                     <td className="currency text-right">{fmt(l.loan_amount)}</td>
                     <td className="currency text-right">{fmt(l.emi_amount)}</td>

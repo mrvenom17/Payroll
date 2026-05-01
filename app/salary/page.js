@@ -137,7 +137,7 @@ export default function SalaryPage() {
               <tr key={emp.id}>
                 <td>
                   <div>
-                    <div style={{ fontWeight: 600 }}>{emp.full_name}</div>
+                    <Link href={`/employees/${emp.id}`} style={{ fontWeight: 600, color: 'var(--primary)', textDecoration: 'none' }}>{emp.full_name}</Link>
                     <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{emp.employee_code}</div>
                   </div>
                 </td>
@@ -146,9 +146,10 @@ export default function SalaryPage() {
                 <td className="currency text-right">{formatCurrency(emp.ctc_monthly)}</td>
                 <td className="currency text-right font-bold">{formatCurrency(emp.ctc_annual)}</td>
                 <td>
-                  <Link href={`/employees/${emp.id}`} className="btn btn-ghost btn-sm">
-                    View Details
-                  </Link>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <Link href={`/employees/${emp.id}`} className="btn btn-ghost btn-sm" title="View Details">👤</Link>
+                    <Link href={`/payslip?employee=${emp.id}`} className="btn btn-ghost btn-sm" title="Payslip">🧾</Link>
+                  </div>
                 </td>
               </tr>
             ))}
