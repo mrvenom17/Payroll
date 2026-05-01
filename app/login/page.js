@@ -74,9 +74,7 @@ export default function LoginPage() {
           </button>
         </form>
         
-        <div style={{ textAlign: 'center', marginTop: 24, fontSize: 12, color: 'var(--text-tertiary)' }}>
-          <p>Default: <b>admin@payroll.local</b> / <b>Admin@123</b></p>
-        </div>
+
       </div>
       
       {/* Hide layout components for this page */}
