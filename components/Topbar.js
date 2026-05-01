@@ -25,18 +25,38 @@ export default function Topbar() {
         if(d.notifications) setNotifications(d.notifications);
         if(d.unreadCount !== undefined) setUnreadCount(d.unreadCount);
       }).catch(console.error);
-      
+
     // Fetch Companies
     fetch('/api/companies')
       .then(r => r.json())
       .then(d => {
-        if(d.companies) setCompanies(d.companies);
+        const list = d.companies || [];
+        setCompanies(list);
+
+        // Heal a missing/stale active_company by picking the first available
+        const stillValid = stored && list.some(c => c.id === stored);
+        if (!stillValid && list.length > 0) {
+          persistActiveCompany(list[0].id);
+          setActiveCompany(list[0].id);
+        } else if (stored && stillValid) {
+          // ensure cookie matches localStorage
+          writeCookie('active_company', stored);
+        }
       }).catch(console.error);
   }, []);
 
+  const writeCookie = (k, v) => {
+    document.cookie = `${k}=${encodeURIComponent(v)}; path=/; max-age=${60 * 60 * 24 * 30}; SameSite=Lax`;
+  };
+
+  const persistActiveCompany = (id) => {
+    localStorage.setItem('active_company', id);
+    writeCookie('active_company', id);
+  };
+
   const handleCompanyChange = (e) => {
     const newComp = e.target.value;
-    localStorage.setItem('active_company', newComp);
+    persistActiveCompany(newComp);
     window.location.reload();
   };
 

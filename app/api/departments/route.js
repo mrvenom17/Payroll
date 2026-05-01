@@ -29,6 +29,13 @@ export async function POST(request) {
     const name = (body.name || '').trim();
     const code = (body.code || '').trim().toUpperCase();
 
+    if (!companyId) {
+      return NextResponse.json({ error: 'No active company. Please create or select a company first.' }, { status: 400 });
+    }
+    const [[companyRow]] = await pool.execute('SELECT id FROM companies WHERE id = ?', [companyId]);
+    if (!companyRow) {
+      return NextResponse.json({ error: 'Active company no longer exists. Pick another from the top bar.' }, { status: 400 });
+    }
     if (!name) return NextResponse.json({ error: 'Department name is required' }, { status: 400 });
     if (!code) return NextResponse.json({ error: 'Department code is required' }, { status: 400 });
     if (!/^[A-Z0-9_-]{2,20}$/.test(code)) {
