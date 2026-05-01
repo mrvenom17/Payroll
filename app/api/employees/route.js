@@ -70,14 +70,29 @@ export async function POST(request) {
     }
     const employeeCode = `${company.code}-${String(nextNum).padStart(3, '0')}`;
 
-    // Validate FK fields: if provided id doesn't exist, null it out so FK doesn't fail
+    // Normalize FK fields: empty/whitespace -> null, then verify referenced row exists
+    const normalizeFk = (v) => {
+      if (v === undefined || v === null) return null;
+      if (typeof v !== 'string') return v;
+      const t = v.trim();
+      return t === '' || t.toLowerCase() === 'null' ? null : t;
+    };
+    body.reporting_manager_id = normalizeFk(body.reporting_manager_id);
+    body.department_id = normalizeFk(body.department_id);
+
     if (body.reporting_manager_id) {
       const [[mgr]] = await pool.execute('SELECT id FROM employees WHERE id = ?', [body.reporting_manager_id]);
-      if (!mgr) body.reporting_manager_id = null;
+      if (!mgr) {
+        console.warn('[employees POST] reporting_manager_id not found, nulling:', body.reporting_manager_id);
+        body.reporting_manager_id = null;
+      }
     }
     if (body.department_id) {
       const [[dept]] = await pool.execute('SELECT id FROM departments WHERE id = ?', [body.department_id]);
-      if (!dept) body.department_id = null;
+      if (!dept) {
+        console.warn('[employees POST] department_id not found, nulling:', body.department_id);
+        body.department_id = null;
+      }
     }
 
     const id = generateId();

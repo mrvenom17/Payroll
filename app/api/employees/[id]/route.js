@@ -67,18 +67,33 @@ export async function PUT(request, { params }) {
     const { id } = await params;
     const body = await request.json();
 
-    // Validate FK fields: if provided id doesn't exist (or self-reference), null it out
+    // Normalize FK fields: empty/whitespace -> null, then verify referenced row exists
+    const normalizeFk = (v) => {
+      if (v === undefined || v === null) return null;
+      if (typeof v !== 'string') return v;
+      const t = v.trim();
+      return t === '' || t.toLowerCase() === 'null' ? null : t;
+    };
+    if (body.reporting_manager_id !== undefined) body.reporting_manager_id = normalizeFk(body.reporting_manager_id);
+    if (body.department_id !== undefined) body.department_id = normalizeFk(body.department_id);
+
     if (body.reporting_manager_id) {
       if (body.reporting_manager_id === id) {
         body.reporting_manager_id = null;
       } else {
         const [[mgr]] = await pool.execute('SELECT id FROM employees WHERE id = ?', [body.reporting_manager_id]);
-        if (!mgr) body.reporting_manager_id = null;
+        if (!mgr) {
+          console.warn('[employees PUT] reporting_manager_id not found, nulling:', body.reporting_manager_id);
+          body.reporting_manager_id = null;
+        }
       }
     }
     if (body.department_id) {
       const [[dept]] = await pool.execute('SELECT id FROM departments WHERE id = ?', [body.department_id]);
-      if (!dept) body.department_id = null;
+      if (!dept) {
+        console.warn('[employees PUT] department_id not found, nulling:', body.department_id);
+        body.department_id = null;
+      }
     }
 
     const updateFields = [];
