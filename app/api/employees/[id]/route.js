@@ -86,7 +86,7 @@ export async function PUT(request, { params }) {
     allowed.forEach(field => {
       if (body[field] !== undefined) {
         updateFields.push(`${field} = ?`);
-        updateValues.push(body[field]);
+        updateValues.push(body[field] === '' ? null : body[field]);
       }
     });
 

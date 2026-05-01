@@ -88,7 +88,8 @@ export async function POST(request) {
     const placeholders = ['?', '?', '?'];
 
     fields.slice(2).forEach(field => {
-      values.push(body[field] !== undefined ? body[field] : null);
+      const v = body[field];
+      values.push(v === undefined || v === '' ? null : v);
       placeholders.push('?');
     });
 
