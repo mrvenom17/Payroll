@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import CompanyManager from '@/components/CompanyManager';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('company');
@@ -78,7 +79,8 @@ export default function SettingsPage() {
   };
 
   const tabs = [
-    { id: 'company', label: 'Company', icon: '🏢' },
+    { id: 'companies', label: 'Companies', icon: '🏢' },
+    { id: 'company', label: 'Company Profile', icon: '📇' },
     { id: 'statutory', label: 'Statutory', icon: '🏛️' },
     { id: 'payroll', label: 'Payroll Config', icon: '⚙️' },
     { id: 'payments', label: 'Payments & Banking', icon: '💳' },
@@ -113,6 +115,16 @@ export default function SettingsPage() {
           </button>
         ))}
       </div>
+
+      {/* Companies Tab — manage all operating entities */}
+      {activeTab === 'companies' && (
+        <div className="card animate-fade-in">
+          <div className="card-header"><span className="card-title">🏢 Company Management</span></div>
+          <div className="card-body">
+            <CompanyManager />
+          </div>
+        </div>
+      )}
 
       {/* Company Tab */}
       {activeTab === 'company' && (
