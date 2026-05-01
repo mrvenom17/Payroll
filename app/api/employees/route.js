@@ -70,6 +70,16 @@ export async function POST(request) {
     }
     const employeeCode = `${company.code}-${String(nextNum).padStart(3, '0')}`;
 
+    // Validate FK fields: if provided id doesn't exist, null it out so FK doesn't fail
+    if (body.reporting_manager_id) {
+      const [[mgr]] = await pool.execute('SELECT id FROM employees WHERE id = ?', [body.reporting_manager_id]);
+      if (!mgr) body.reporting_manager_id = null;
+    }
+    if (body.department_id) {
+      const [[dept]] = await pool.execute('SELECT id FROM departments WHERE id = ?', [body.department_id]);
+      if (!dept) body.department_id = null;
+    }
+
     const id = generateId();
     const fields = [
       'company_id', 'employee_code', 'full_name', 'father_spouse_name',

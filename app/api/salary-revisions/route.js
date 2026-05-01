@@ -61,3 +61,30 @@ export async function POST(request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+// DELETE — remove a salary revision record
+export async function DELETE(request) {
+  try {
+    const pool = getPool();
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
+
+    const [[rev]] = await pool.execute('SELECT * FROM salary_revisions WHERE id = ?', [id]);
+    if (!rev) return NextResponse.json({ error: 'Revision not found' }, { status: 404 });
+
+    await pool.execute('DELETE FROM salary_revisions WHERE id = ?', [id]);
+
+    try {
+      const [[emp]] = await pool.execute('SELECT company_id FROM employees WHERE id = ?', [rev.employee_id]);
+      await pool.execute(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [generateId(), emp?.company_id, 'SALARY_REVISION_DELETED', 'salary_revision', id, JSON.stringify({ employee_id: rev.employee_id, old_ctc: rev.old_ctc, new_ctc: rev.new_ctc }), 'admin']);
+    } catch (e) { console.error('audit:', e.message); }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('DELETE /api/salary-revisions:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

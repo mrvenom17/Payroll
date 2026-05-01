@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useToast } from '@/components/Toast';
+import { useConfirm } from '@/components/ConfirmModal';
 
 const fmt = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
 
@@ -11,11 +13,14 @@ export default function LoansPage() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [msg, setMsg] = useState('');
+  const [editing, setEditing] = useState(null);
   const [filter, setFilter] = useState('');
   const [form, setForm] = useState({
     employee_id: '', loan_type: 'Imprest Money', loan_amount: '', emi_amount: '', start_date: new Date().toISOString().split('T')[0],
   });
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
+  const confirm = useConfirm();
 
   const fetchData = () => {
     setLoading(true);
@@ -32,21 +37,146 @@ export default function LoansPage() {
 
   useEffect(fetchData, [filter]);
 
-  const createLoan = async (e) => {
+  const openNew = () => {
+    setEditing(null);
+    setForm({ employee_id: '', loan_type: 'Imprest Money', loan_amount: '', emi_amount: '', start_date: new Date().toISOString().split('T')[0] });
+    setShowModal(true);
+  };
+
+  const openEdit = (loan) => {
+    setEditing(loan);
+    setForm({
+      employee_id: loan.employee_id,
+      loan_type: loan.loan_type,
+      loan_amount: loan.loan_amount,
+      emi_amount: loan.emi_amount,
+      start_date: loan.start_date || '',
+    });
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setMsg('');
+    setSaving(true);
+    try {
+      if (editing) {
+        // Update existing loan
+        const res = await fetch('/api/loans', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editing.id,
+            loan_type: form.loan_type,
+            emi_amount: parseFloat(form.emi_amount),
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          toast.success('Loan updated');
+          setShowModal(false);
+          fetchData();
+        } else {
+          toast.error(data.error || 'Update failed');
+        }
+      } else {
+        // Create new loan
+        const res = await fetch('/api/loans', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...form,
+            loan_amount: parseFloat(form.loan_amount),
+            emi_amount: parseFloat(form.emi_amount),
+          }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          toast.success('Loan created successfully');
+          setShowModal(false);
+          fetchData();
+        } else {
+          toast.error(data.error || 'Creation failed');
+        }
+      }
+    } catch (err) {
+      toast.error('Network error');
+    }
+    setSaving(false);
+  };
+
+  const closeLoan = async (loan) => {
+    const ok = await confirm({
+      title: 'Close Loan?',
+      message: `Mark loan "${loan.loan_type}" for ${loan.full_name} as fully repaid? Outstanding balance (${fmt(loan.balance_outstanding)}) will be set to ₹0.`,
+      confirmText: 'Yes, Close',
+      variant: 'success',
+      icon: '✅',
+    });
+    if (!ok) return;
     const res = await fetch('/api/loans', {
-      method: 'POST',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ id: loan.id, action: 'close' }),
     });
     const data = await res.json();
-    if (data.success) {
-      setMsg('✅ Loan created');
-      setShowModal(false);
-      setForm({ employee_id: '', loan_type: 'Advance', loan_amount: '', emi_amount: '', start_date: new Date().toISOString().split('T')[0] });
-      fetchData();
-    } else setMsg(`❌ ${data.error}`);
+    if (data.success) { toast.success('Loan closed'); fetchData(); }
+    else toast.error(data.error || 'Close failed');
+  };
+
+  const writeOffLoan = async (loan) => {
+    const ok = await confirm({
+      title: 'Write Off Loan?',
+      message: `Write off loan "${loan.loan_type}" for ${loan.full_name}? Outstanding: ${fmt(loan.balance_outstanding)}. This marks the loan as unrecoverable.`,
+      confirmText: 'Yes, Write Off',
+      variant: 'danger',
+      icon: '💸',
+    });
+    if (!ok) return;
+    const res = await fetch('/api/loans', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: loan.id, action: 'write_off' }),
+    });
+    const data = await res.json();
+    if (data.success) { toast.success('Loan written off'); fetchData(); }
+    else toast.error(data.error || 'Write-off failed');
+  };
+
+  const deleteLoan = async (loan) => {
+    const isActive = loan.status === 'ACTIVE';
+    const ok = await confirm({
+      title: 'Delete Loan?',
+      message: isActive
+        ? `This will permanently delete the ACTIVE loan "${loan.loan_type}" for ${loan.full_name} (${fmt(loan.loan_amount)}). This cannot be undone. Consider closing it instead.`
+        : `Permanently remove "${loan.loan_type}" record for ${loan.full_name}?`,
+      confirmText: 'Yes, Delete',
+      variant: 'danger',
+      icon: '🗑️',
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/loans?id=${loan.id}${isActive ? '&force=true' : ''}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) { toast.success('Loan deleted'); fetchData(); }
+    else toast.error(data.error || 'Delete failed');
+  };
+
+  const reactivateLoan = async (loan) => {
+    const ok = await confirm({
+      title: 'Reactivate Loan?',
+      message: `Reactivate "${loan.loan_type}" for ${loan.full_name}? Outstanding: ${fmt(loan.balance_outstanding)}.`,
+      confirmText: 'Yes, Reactivate',
+      variant: 'warning',
+      icon: '🔄',
+    });
+    if (!ok) return;
+    const res = await fetch('/api/loans', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: loan.id, action: 'reactivate' }),
+    });
+    const data = await res.json();
+    if (data.success) { toast.success('Loan reactivated'); fetchData(); }
+    else toast.error(data.error || 'Reactivate failed');
   };
 
   return (
@@ -56,10 +186,8 @@ export default function LoansPage() {
           <h1 className="page-title">🏦 Loans & Advances</h1>
           <p className="page-subtitle">Manage employee loans, salary advances, and EMI deductions</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>➕ New Loan / Advance</button>
+        <button className="btn btn-primary" onClick={openNew}>➕ New Loan / Advance</button>
       </div>
-
-      {msg && <div className={`alert ${msg.startsWith('✅') ? 'alert-success' : 'alert-danger'}`}>{msg}</div>}
 
       {/* Summary */}
       <div className="stat-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
@@ -94,6 +222,7 @@ export default function LoansPage() {
                 <th style={{ textAlign: 'right' }}>Outstanding</th>
                 <th>Progress</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -117,6 +246,21 @@ export default function LoansPage() {
                       </div>
                     </td>
                     <td><span className={`badge ${l.status === 'ACTIVE' ? 'badge-warning' : l.status === 'CLOSED' ? 'badge-success' : 'badge-danger'}`}>{l.status}</span></td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {l.status === 'ACTIVE' && (
+                          <>
+                            <button className="btn btn-ghost btn-sm" onClick={() => openEdit(l)} title="Edit EMI">✏️</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => closeLoan(l)} title="Close (mark as repaid)" style={{ color: 'var(--success)' }}>✅</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => writeOffLoan(l)} title="Write Off" style={{ color: 'var(--warning)' }}>💸</button>
+                          </>
+                        )}
+                        {(l.status === 'CLOSED' || l.status === 'WRITTEN_OFF') && (
+                          <button className="btn btn-ghost btn-sm" onClick={() => reactivateLoan(l)} title="Reactivate">🔄</button>
+                        )}
+                        <button className="btn btn-ghost btn-sm" onClick={() => deleteLoan(l)} title="Delete" style={{ color: 'var(--danger)' }}>🗑️</button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -125,22 +269,26 @@ export default function LoansPage() {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Create / Edit Modal */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title">Create Loan / Advance</h3>
+              <h3 className="modal-title">{editing ? '✏️ Edit Loan' : '➕ Create Loan / Advance'}</h3>
               <button className="modal-close" onClick={() => setShowModal(false)}>×</button>
             </div>
-            <form onSubmit={createLoan}>
+            <form onSubmit={handleSubmit}>
               <div className="modal-body">
                 <div className="form-group">
                   <label className="form-label form-label-required">Employee</label>
-                  <select className="form-select" value={form.employee_id} onChange={e => setForm(p => ({ ...p, employee_id: e.target.value }))} required>
-                    <option value="">Select Employee</option>
-                    {employees.map(e => <option key={e.id} value={e.id}>{e.full_name} ({e.employee_code})</option>)}
-                  </select>
+                  {editing ? (
+                    <input className="form-input" value={`${editing.full_name} (${editing.employee_code})`} disabled />
+                  ) : (
+                    <select className="form-select" value={form.employee_id} onChange={e => setForm(p => ({ ...p, employee_id: e.target.value }))} required>
+                      <option value="">Select Employee</option>
+                      {employees.map(e => <option key={e.id} value={e.id}>{e.full_name} ({e.employee_code})</option>)}
+                    </select>
+                  )}
                 </div>
                 <div className="form-group">
                   <label className="form-label">Loan / Advance Type</label>
@@ -159,24 +307,29 @@ export default function LoansPage() {
                 <div className="form-row">
                   <div className="form-group">
                     <label className="form-label form-label-required">Loan Amount (₹)</label>
-                    <input type="number" className="form-input" value={form.loan_amount} onChange={e => setForm(p => ({ ...p, loan_amount: parseFloat(e.target.value) || 0 }))} required />
+                    <input type="number" className="form-input" value={form.loan_amount} onChange={e => setForm(p => ({ ...p, loan_amount: e.target.value }))} required disabled={!!editing} />
+                    {editing && <span className="form-hint">Loan amount cannot be changed after creation</span>}
                   </div>
                   <div className="form-group">
                     <label className="form-label form-label-required">Monthly EMI (₹)</label>
-                    <input type="number" className="form-input" value={form.emi_amount} onChange={e => setForm(p => ({ ...p, emi_amount: parseFloat(e.target.value) || 0 }))} required />
+                    <input type="number" className="form-input" value={form.emi_amount} onChange={e => setForm(p => ({ ...p, emi_amount: e.target.value }))} required />
                     {form.loan_amount && form.emi_amount > 0 && (
-                      <span className="form-hint">Duration: ~{Math.ceil(form.loan_amount / form.emi_amount)} months</span>
+                      <span className="form-hint">Duration: ~{Math.ceil((editing ? editing.balance_outstanding : form.loan_amount) / form.emi_amount)} months</span>
                     )}
                   </div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Start Date</label>
-                  <input type="date" className="form-input" value={form.start_date} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} />
-                </div>
+                {!editing && (
+                  <div className="form-group">
+                    <label className="form-label">Start Date</label>
+                    <input type="date" className="form-input" value={form.start_date} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} />
+                  </div>
+                )}
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-outline" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-success">✓ Create Loan</button>
+                <button type="button" className="btn btn-outline" onClick={() => setShowModal(false)} disabled={saving}>Cancel</button>
+                <button type="submit" className="btn btn-success" disabled={saving}>
+                  {saving ? '⏳ Saving…' : (editing ? '💾 Save Changes' : '✓ Create Loan')}
+                </button>
               </div>
             </form>
           </div>

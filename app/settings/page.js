@@ -77,7 +77,7 @@ export default function SettingsPage() {
     if (companyId && company) {
       try {
         await fetch('/api/companies', {
-          method: 'POST',
+          method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             id: companyId,

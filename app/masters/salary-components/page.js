@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useToast } from '@/components/Toast';
+import { useConfirm } from '@/components/ConfirmModal';
 
 export default function SalaryComponentsPage() {
   const [components, setComponents] = useState([]);
@@ -9,7 +10,10 @@ export default function SalaryComponentsPage() {
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState({});
   const [saving, setSaving] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newComp, setNewComp] = useState({ name: '', code: '', type: 'EARNING', percent_of: '', default_percent: '', default_amount: '', is_taxable: false, contributes_to_pf: false, contributes_to_esic: false, tax_deductible: false, display_order: 99, description: '' });
   const toast = useToast();
+  const confirm = useConfirm();
 
   const reload = () => {
     setLoading(true);
@@ -53,6 +57,54 @@ export default function SalaryComponentsPage() {
       reload();
     } else {
       toast.error(data.error || 'Save failed');
+    }
+  };
+
+  const createComponent = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const res = await fetch('/api/salary-components', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newComp),
+      });
+      const data = await res.json();
+      setSaving(false);
+      if (res.ok) {
+        toast.success(`Component "${data.component.name}" created`);
+        setShowAddModal(false);
+        setNewComp({ name: '', code: '', type: 'EARNING', percent_of: '', default_percent: '', default_amount: '', is_taxable: false, contributes_to_pf: false, contributes_to_esic: false, tax_deductible: false, display_order: 99, description: '' });
+        reload();
+      } else {
+        toast.error(data.error || 'Creation failed');
+      }
+    } catch (err) {
+      toast.error('Network error');
+      setSaving(false);
+    }
+  };
+
+  const deleteComponent = async (c) => {
+    if (c.is_statutory) {
+      toast.error('Statutory components cannot be deleted');
+      return;
+    }
+    const ok = await confirm({
+      title: 'Delete Component?',
+      message: `Remove "${c.name}" (${c.code})? If it's used in salary structures, it will be deactivated instead of deleted.`,
+      confirmText: 'Yes, Delete',
+      variant: 'danger',
+      icon: '🗑️',
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/salary-components?id=${c.id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (data.success) {
+      toast.success(data.soft_deleted ? `Component deactivated (${data.message})` : 'Component deleted');
+      reload();
+    } else {
+      toast.error(data.error || 'Delete failed');
     }
   };
 
@@ -147,7 +199,12 @@ export default function SalaryComponentsPage() {
                 {c.tax_deductible ? <span className="badge badge-success" style={{ fontSize: 10 }}>80C</span> : null}
               </>
             )}
-            <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={() => startEdit(c)} title="Edit">✏️</button>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 2 }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => startEdit(c)} title="Edit">✏️</button>
+              {!c.is_statutory && (
+                <button className="btn btn-ghost btn-sm" onClick={() => deleteComponent(c)} title="Delete" style={{ color: 'var(--danger)' }}>🗑️</button>
+              )}
+            </div>
           </div>
         </td>
       </tr>
@@ -161,9 +218,10 @@ export default function SalaryComponentsPage() {
           <h1 className="page-title">⚙️ Salary Components</h1>
           <p className="page-subtitle">Master list of all earning and deduction components · click ✏️ to modify</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="badge badge-success" style={{ fontSize: 13, padding: '6px 12px' }}>📈 {earnings.length} Earnings</span>
           <span className="badge badge-danger" style={{ fontSize: 13, padding: '6px 12px' }}>📉 {deductions.length} Deductions</span>
+          <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>➕ Add Component</button>
         </div>
       </div>
 
@@ -178,7 +236,7 @@ export default function SalaryComponentsPage() {
             <div className="card-body" style={{ padding: 0 }}>
               <table>
                 <thead>
-                  <tr><th>#</th><th>Component</th><th>Code</th><th>Calculation</th><th>Flags / Edit</th></tr>
+                  <tr><th>#</th><th>Component</th><th>Code</th><th>Calculation</th><th>Flags / Actions</th></tr>
                 </thead>
                 <tbody>{earnings.map(c => renderRow(c, 'EARNING'))}</tbody>
               </table>
@@ -192,11 +250,84 @@ export default function SalaryComponentsPage() {
             <div className="card-body" style={{ padding: 0 }}>
               <table>
                 <thead>
-                  <tr><th>#</th><th>Component</th><th>Code</th><th>Calculation</th><th>Flags / Edit</th></tr>
+                  <tr><th>#</th><th>Component</th><th>Code</th><th>Calculation</th><th>Flags / Actions</th></tr>
                 </thead>
                 <tbody>{deductions.map(c => renderRow(c, 'DEDUCTION'))}</tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Component Modal */}
+      {showAddModal && (
+        <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
+          <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">➕ Add Salary Component</h3>
+              <button className="modal-close" onClick={() => setShowAddModal(false)}>×</button>
+            </div>
+            <form onSubmit={createComponent}>
+              <div className="modal-body">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label form-label-required">Component Name</label>
+                    <input className="form-input" placeholder="e.g. Night Shift Allowance" value={newComp.name} onChange={e => setNewComp(p => ({ ...p, name: e.target.value }))} required autoFocus />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label form-label-required">Code</label>
+                    <input className="form-input font-mono" placeholder="e.g. NSA" value={newComp.code} onChange={e => setNewComp(p => ({ ...p, code: e.target.value.toUpperCase() }))} maxLength={20} style={{ textTransform: 'uppercase' }} required />
+                    <span className="form-hint">2–20 chars, A–Z / 0–9 / _</span>
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label form-label-required">Type</label>
+                  <select className="form-select" value={newComp.type} onChange={e => setNewComp(p => ({ ...p, type: e.target.value }))}>
+                    <option value="EARNING">Earning</option>
+                    <option value="DEDUCTION">Deduction</option>
+                  </select>
+                </div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">% of (component code)</label>
+                    <input className="form-input font-mono" placeholder="e.g. BASIC" value={newComp.percent_of} onChange={e => setNewComp(p => ({ ...p, percent_of: e.target.value.toUpperCase() }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Default %</label>
+                    <input type="number" step="0.01" className="form-input" value={newComp.default_percent} onChange={e => setNewComp(p => ({ ...p, default_percent: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Default fixed (₹)</label>
+                    <input type="number" className="form-input" value={newComp.default_amount} onChange={e => setNewComp(p => ({ ...p, default_amount: e.target.value }))} />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Description</label>
+                  <input className="form-input" placeholder="Brief description of this component" value={newComp.description} onChange={e => setNewComp(p => ({ ...p, description: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Display Order</label>
+                  <input type="number" className="form-input" value={newComp.display_order} onChange={e => setNewComp(p => ({ ...p, display_order: parseInt(e.target.value) || 0 }))} style={{ maxWidth: 100 }} />
+                </div>
+                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                  {newComp.type === 'EARNING' ? (
+                    <>
+                      <label className="form-check"><input type="checkbox" checked={newComp.is_taxable} onChange={e => setNewComp(p => ({ ...p, is_taxable: e.target.checked }))} /> Taxable</label>
+                      <label className="form-check"><input type="checkbox" checked={newComp.contributes_to_pf} onChange={e => setNewComp(p => ({ ...p, contributes_to_pf: e.target.checked }))} /> Contributes to PF</label>
+                      <label className="form-check"><input type="checkbox" checked={newComp.contributes_to_esic} onChange={e => setNewComp(p => ({ ...p, contributes_to_esic: e.target.checked }))} /> Contributes to ESIC</label>
+                    </>
+                  ) : (
+                    <label className="form-check"><input type="checkbox" checked={newComp.tax_deductible} onChange={e => setNewComp(p => ({ ...p, tax_deductible: e.target.checked }))} /> 80C / Tax Deductible</label>
+                  )}
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-outline" onClick={() => setShowAddModal(false)} disabled={saving}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving ? '⏳ Creating…' : '➕ Create Component'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

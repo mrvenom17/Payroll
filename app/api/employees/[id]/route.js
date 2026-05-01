@@ -67,6 +67,20 @@ export async function PUT(request, { params }) {
     const { id } = await params;
     const body = await request.json();
 
+    // Validate FK fields: if provided id doesn't exist (or self-reference), null it out
+    if (body.reporting_manager_id) {
+      if (body.reporting_manager_id === id) {
+        body.reporting_manager_id = null;
+      } else {
+        const [[mgr]] = await pool.execute('SELECT id FROM employees WHERE id = ?', [body.reporting_manager_id]);
+        if (!mgr) body.reporting_manager_id = null;
+      }
+    }
+    if (body.department_id) {
+      const [[dept]] = await pool.execute('SELECT id FROM departments WHERE id = ?', [body.department_id]);
+      if (!dept) body.department_id = null;
+    }
+
     const updateFields = [];
     const updateValues = [];
 

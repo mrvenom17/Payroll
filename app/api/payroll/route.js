@@ -234,3 +234,42 @@ export async function PUT(request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+// DELETE — clear payroll records for a given month/year
+// Only DRAFT records can be deleted. Use ?month=X&year=Y&company=Z
+// Pass scope=all to delete ALL statuses (admin override)
+export async function DELETE(request) {
+  try {
+    const pool = getPool();
+    const { searchParams } = new URL(request.url);
+    const month = parseInt(searchParams.get('month'));
+    const year = parseInt(searchParams.get('year'));
+    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
+    const scope = searchParams.get('scope') || 'draft';
+
+    if (!month || !year) {
+      return NextResponse.json({ error: 'month and year are required' }, { status: 400 });
+    }
+
+    let statusClause = `AND p.status = 'DRAFT'`;
+    if (scope === 'all') {
+      statusClause = ''; // Delete all statuses
+    }
+
+    const [result] = await pool.execute(`
+      DELETE p FROM payroll p
+      JOIN employees e ON e.id = p.employee_id
+      WHERE p.month = ? AND p.year = ? AND e.company_id = ? ${statusClause}
+    `, [month, year, companyId]);
+
+    try {
+      await pool.execute(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [generateId(), companyId, 'PAYROLL_DELETED', 'payroll', `${month}-${year}`, JSON.stringify({ month, year, scope, deleted: result.affectedRows }), 'admin']);
+    } catch (e) { console.error('audit:', e.message); }
+
+    return NextResponse.json({ success: true, deleted: result.affectedRows });
+  } catch (error) {
+    console.error('DELETE /api/payroll:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
