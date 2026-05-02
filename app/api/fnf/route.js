@@ -90,7 +90,7 @@ export async function POST(request) {
       ORDER BY year DESC, month DESC LIMIT 1
     `, [body.employee_id]);
     const elBalance = lastAtt?.el_balance || 0;
-    const dailyRate = Math.round((emp.ctc_monthly || 0) / 26);
+    const dailyRate = Math.round(basicMonthly / 26); // Use basic salary, not CTC
     const leaveEncashment = Math.round(elBalance * dailyRate);
 
     // Pending loans

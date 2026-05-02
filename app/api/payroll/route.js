@@ -85,7 +85,13 @@ export async function POST(request) {
       for (const emp of employees) {
         const att = attendanceMap[emp.id];
         const totalWorkingDays = att?.total_working_days || 26;
-        const paidDays = att ? (att.present_days + att.paid_leaves + (att.half_days * 0.5)) : totalWorkingDays;
+        const unpaidLeaves = att?.unpaid_leaves || 0;
+        const absentDays = att?.absent_days || 0;
+        const halfDays = att?.half_days || 0;
+        // Effective paid days = total working days minus unpaid absences
+        // Half-days count as 0.5 loss each
+        const lossOfPay = unpaidLeaves + absentDays + (halfDays * 0.5);
+        const paidDays = att ? Math.max(totalWorkingDays - lossOfPay, 0) : totalWorkingDays;
         const payRatio = totalWorkingDays > 0 ? paidDays / totalWorkingDays : 1;
 
         // Get salary components
@@ -113,9 +119,10 @@ export async function POST(request) {
         const grossEarnings = basic + hra + conv + med + spl + bonus + overtime + arrears + reimbursements;
 
         // Statutory deductions
-        const pfResult = calculatePF(compMap['BASIC'] || 0);
-        const pfDeduction = Math.round(pfResult.employeeContribution * payRatio);
-        const employerPf = Math.round(pfResult.employerContribution * payRatio);
+        // PF calculated on pro-rated basic (already adjusted for attendance)
+        const pfResult = calculatePF(basic);
+        const pfDeduction = pfResult.employeeContribution;
+        const employerPf = pfResult.employerContribution;
 
         const esicResult = calculateESIC(grossEarnings);
         const esicDeduction = esicResult.applicable ? esicResult.employeeContribution : 0;

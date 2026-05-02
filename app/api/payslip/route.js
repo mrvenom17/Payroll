@@ -56,51 +56,65 @@ export async function GET(request) {
       [employeeId, month, year]
     );
 
-    // Build payslip
-    const workingDays = attendance?.total_working_days || 22;
-    const presentDays = attendance?.days_present || workingDays;
-    const ratio = presentDays / workingDays;
+    // Build payslip using payroll record values (already correctly calculated)
+    const workingDays = payrollRecord.total_working_days || attendance?.total_working_days || 22;
 
-    const earnings = salaryDetails.filter(s => s.component_type === 'EARNING').map(s => ({
-      name: s.component_name,
-      code: s.component_code,
-      monthly: s.monthly_amount,
-      actual: Math.round(s.monthly_amount * ratio),
-    }));
+    // Compute paid days using the same safe formula as payroll processing
+    const unpaidLeaves = attendance?.unpaid_leaves || 0;
+    const absentDays = attendance?.absent_days || 0;
+    const halfDays = attendance?.half_days || 0;
+    const lossOfPay = unpaidLeaves + absentDays + (halfDays * 0.5);
+    const presentDays = payrollRecord.paid_days || Math.max(workingDays - lossOfPay, 0);
 
-    const totalEarnings = earnings.reduce((sum, e) => sum + e.actual, 0);
-    const basicActual = earnings.find(e => e.code === 'BASIC')?.actual || 0;
+    // Build earnings from salary components, but use payroll-record pro-rated amounts
+    const payRatio = workingDays > 0 ? presentDays / workingDays : 1;
+    const earnings = salaryDetails.filter(s => s.component_type === 'EARNING').map(s => {
+      // Map known component codes to payroll record columns
+      let actual = Math.round(s.monthly_amount * payRatio);
+      if (s.component_code === 'BASIC') actual = payrollRecord.basic_salary || actual;
+      else if (s.component_code === 'HRA') actual = payrollRecord.hra || actual;
+      else if (s.component_code === 'CONV') actual = payrollRecord.conveyance || actual;
+      else if (s.component_code === 'MED') actual = payrollRecord.medical || actual;
+      else if (s.component_code === 'SPL') actual = payrollRecord.special_allowance || actual;
+      return {
+        name: s.component_name,
+        code: s.component_code,
+        monthly: s.monthly_amount,
+        actual,
+      };
+    });
 
+    const totalEarnings = payrollRecord.gross_earnings || earnings.reduce((sum, e) => sum + e.actual, 0);
+
+    // Build deductions from the payroll record (authoritative source)
     const deductions = [];
-    // PF
-    const pfBase = Math.min(basicActual, 15000);
-    const pfEmployee = Math.round(pfBase * 0.12);
-    if (pfEmployee > 0) deductions.push({ name: 'Provident Fund @ 12% (Employee)', amount: pfEmployee });
+    const pfDeduction = payrollRecord.pf_deduction || 0;
+    if (pfDeduction > 0) deductions.push({ name: 'Provident Fund @ 12% (Employee)', amount: pfDeduction });
 
-    // ESIC
-    if (totalEarnings <= 21000) {
-      const esicEmp = Math.round(totalEarnings * 0.0075);
-      if (esicEmp > 0) deductions.push({ name: 'ESI @ 0.75% (Employee)', amount: esicEmp });
-    }
+    const esicDeduction = payrollRecord.esic_deduction || 0;
+    if (esicDeduction > 0) deductions.push({ name: 'ESI @ 0.75% (Employee)', amount: esicDeduction });
 
-    // PT
     const ptData = payrollRecord.pt_deduction || 0;
     if (ptData > 0) deductions.push({ name: 'Professional Tax', amount: ptData });
 
-    // TDS
     const tds = payrollRecord.tds_deduction || 0;
     if (tds > 0) deductions.push({ name: 'TDS', amount: tds });
 
-    // Loan
     const loanDeduction = payrollRecord.loan_deduction || 0;
     if (loanDeduction > 0) deductions.push({ name: 'Loan Deduction', amount: loanDeduction });
 
-    const totalDeductions = deductions.reduce((sum, d) => sum + d.amount, 0);
-    const netPayable = totalEarnings - totalDeductions;
+    const advanceDeduction = payrollRecord.advance_deduction || 0;
+    if (advanceDeduction > 0) deductions.push({ name: 'Advance Deduction', amount: advanceDeduction });
 
-    // Employer contributions
-    const pfEmployer = Math.round(pfBase * 0.12);
-    const esicEmployer = totalEarnings <= 21000 ? Math.round(totalEarnings * 0.0325) : 0;
+    const otherDeductions = payrollRecord.other_deductions || 0;
+    if (otherDeductions > 0) deductions.push({ name: 'Other Deductions', amount: otherDeductions });
+
+    const totalDeductions = payrollRecord.total_deductions || deductions.reduce((sum, d) => sum + d.amount, 0);
+    const netPayable = payrollRecord.net_salary || (totalEarnings - totalDeductions);
+
+    // Employer contributions from payroll record
+    const pfEmployer = payrollRecord.employer_pf || 0;
+    const esicEmployer = payrollRecord.employer_esic || 0;
 
     return NextResponse.json({
       payslip: {
@@ -131,8 +145,8 @@ export async function GET(request) {
         attendance: {
           workingDays,
           presentDays,
-          lop: workingDays - presentDays,
-          lwp: attendance?.unpaid_leaves || (workingDays - presentDays), // Explicit LWP mapping for UI
+          lop: lossOfPay,
+          lwp: unpaidLeaves + absentDays, // Total unpaid days (LWP = unpaid leaves + absent days)
           halfDays: attendance?.half_days || 0,
           holidays: attendance?.holidays || 0,
           sundays: attendance?.sundays || 0,
