@@ -21,6 +21,8 @@ export default function PayrollPage() {
   const [bulkUtr, setBulkUtr] = useState('');
   const [bulkDate, setBulkDate] = useState(new Date().toISOString().split('T')[0]);
   const [payRows, setPayRows] = useState([]); // [{ payroll_id, employee, net, mode, utr, cheque_number, cheque_bank, cheque_date }]
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
   const confirm = useConfirm();
   const toast = useToast();
 
@@ -192,6 +194,43 @@ export default function PayrollPage() {
     }
   };
 
+  const openEditModal = (record) => {
+    setEditingRecord(record);
+    setEditFormData({
+      basic_salary: record.basic_salary || 0,
+      hra: record.hra || 0,
+      conveyance: record.conveyance || 0,
+      medical: record.medical || 0,
+      special_allowance: record.special_allowance || 0,
+      gross_earnings: record.gross_earnings || 0,
+      pf_deduction: record.pf_deduction || 0,
+      esic_deduction: record.esic_deduction || 0,
+      pt_deduction: record.pt_deduction || 0,
+      tds_deduction: record.tds_deduction || 0,
+      loan_deduction: record.loan_deduction || 0,
+      advance_deduction: record.advance_deduction || 0,
+      other_deductions: record.other_deductions || 0,
+    });
+  };
+
+  const submitEdit = async () => {
+    setProcessing(true);
+    const res = await fetch(`/api/payroll/${editingRecord.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editFormData),
+    });
+    setProcessing(false);
+    if (res.ok) {
+      toast.success('Record updated successfully');
+      setEditingRecord(null);
+      fetchData();
+    } else {
+      const data = await res.json();
+      toast.error(data.error || 'Update failed');
+    }
+  };
+
 
   return (
     <div className="animate-fade-in">
@@ -319,13 +358,18 @@ export default function PayrollPage() {
                       </span>
                     </td>
                     <td>
-                      {(r.status === 'APPROVED' || r.status === 'PAID') ? (
-                        <Link href={`/payslip?employee=${r.employee_id}&month=${month}&year=${year}`} className="btn btn-ghost btn-sm" title="View Payslip">
-                          🧾
-                        </Link>
-                      ) : (
-                        <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>—</span>
-                      )}
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {(r.status === 'APPROVED' || r.status === 'PAID') && (
+                          <Link href={`/payslip?employee=${r.employee_id}&month=${month}&year=${year}`} className="btn btn-ghost btn-sm" title="View Payslip">
+                            🧾
+                          </Link>
+                        )}
+                        {r.status === 'DRAFT' && (
+                          <button className="btn btn-ghost btn-sm" title="Edit Record" onClick={() => openEditModal(r)}>
+                            ✏️
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -457,6 +501,63 @@ export default function PayrollPage() {
             <div className="modal-footer">
               <button className="btn btn-outline" onClick={() => setShowPayModal(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={submitManualPay}>💳 Record Payments</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Payroll Record Modal */}
+      {editingRecord && (
+        <div className="modal-overlay" onClick={() => setEditingRecord(null)}>
+          <div className="modal" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">✏️ Edit Payroll - {editingRecord.full_name}</h3>
+              <button className="modal-close" onClick={() => setEditingRecord(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="alert alert-warning" style={{ marginBottom: 16 }}>
+                You are manually overriding the calculated deductions/earnings for this employee.
+              </div>
+              <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label">Basic Salary</label>
+                  <input type="number" className="form-input" value={editFormData.basic_salary} onChange={e => setEditFormData({ ...editFormData, basic_salary: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">HRA</label>
+                  <input type="number" className="form-input" value={editFormData.hra} onChange={e => setEditFormData({ ...editFormData, hra: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Gross Earnings</label>
+                  <input type="number" className="form-input" value={editFormData.gross_earnings} onChange={e => setEditFormData({ ...editFormData, gross_earnings: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">PF Deduction</label>
+                  <input type="number" className="form-input" value={editFormData.pf_deduction} onChange={e => setEditFormData({ ...editFormData, pf_deduction: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">ESIC Deduction</label>
+                  <input type="number" className="form-input" value={editFormData.esic_deduction} onChange={e => setEditFormData({ ...editFormData, esic_deduction: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">PT Deduction</label>
+                  <input type="number" className="form-input" value={editFormData.pt_deduction} onChange={e => setEditFormData({ ...editFormData, pt_deduction: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">TDS Deduction</label>
+                  <input type="number" className="form-input" value={editFormData.tds_deduction} onChange={e => setEditFormData({ ...editFormData, tds_deduction: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Other Deductions</label>
+                  <input type="number" className="form-input" value={editFormData.other_deductions} onChange={e => setEditFormData({ ...editFormData, other_deductions: e.target.value })} />
+                </div>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-outline" onClick={() => setEditingRecord(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={submitEdit} disabled={processing}>
+                {processing ? 'Saving...' : 'Save Changes'}
+              </button>
             </div>
           </div>
         </div>
