@@ -85,13 +85,20 @@ export async function POST(request) {
       for (const emp of employees) {
         const att = attendanceMap[emp.id];
         const totalWorkingDays = att?.total_working_days || 26;
-        const unpaidLeaves = att?.unpaid_leaves || 0;
-        const absentDays = att?.absent_days || 0;
-        const halfDays = att?.half_days || 0;
-        // Effective paid days = total working days minus unpaid absences
-        // Half-days count as 0.5 loss each
-        const lossOfPay = unpaidLeaves + absentDays + (halfDays * 0.5);
-        const paidDays = att ? Math.max(totalWorkingDays - lossOfPay, 0) : totalWorkingDays;
+        let paidDays = totalWorkingDays;
+        
+        if (att) {
+          if (att.present_days !== undefined && att.present_days !== null && att.present_days > 0) {
+            paidDays = att.present_days;
+          } else {
+            const unpaidLeaves = att.unpaid_leaves || 0;
+            const absentDays = att.absent_days || 0;
+            const halfDays = att.half_days || 0;
+            const lossOfPay = unpaidLeaves + absentDays + (halfDays * 0.5);
+            paidDays = Math.max(totalWorkingDays - lossOfPay, 0);
+          }
+        }
+        
         const payRatio = totalWorkingDays > 0 ? paidDays / totalWorkingDays : 1;
 
         // Get salary components
