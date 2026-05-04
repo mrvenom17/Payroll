@@ -215,6 +215,47 @@ export default function PayrollPage() {
     });
   };
 
+  const handleDaysChange = (field, value) => {
+    setEditFormData(prev => {
+      const updated = { ...prev, [field]: value };
+      
+      const oldPaid = Number(editingRecord.paid_days) || 0;
+      const oldTotal = Number(editingRecord.total_working_days) || 26;
+      const newPaid = Number(updated.paid_days) || 0;
+      const newTotal = Number(updated.total_working_days) || 26;
+      
+      if (oldPaid > 0 && oldTotal > 0 && newTotal > 0) {
+        // Only trigger recalculation if the ratio actually changed
+        if (newPaid !== oldPaid || newTotal !== oldTotal) {
+          const recalc = (oldAmt) => {
+            if (!oldAmt) return 0;
+            const fullAmt = (oldAmt * oldTotal) / oldPaid;
+            return Math.round((fullAmt / newTotal) * newPaid);
+          };
+          
+          updated.basic_salary = recalc(editingRecord.basic_salary);
+          updated.hra = recalc(editingRecord.hra);
+          updated.conveyance = recalc(editingRecord.conveyance);
+          updated.medical = recalc(editingRecord.medical);
+          updated.special_allowance = recalc(editingRecord.special_allowance);
+          
+          updated.gross_earnings = updated.basic_salary + updated.hra + updated.conveyance + updated.medical + updated.special_allowance;
+          
+          // Re-calculate deductions
+          updated.pf_deduction = Math.round(updated.basic_salary * 0.12);
+          
+          const fullGross = (editingRecord.gross_earnings * oldTotal) / oldPaid;
+          if (fullGross <= 21000) {
+            updated.esic_deduction = Math.round(updated.gross_earnings * 0.0075);
+          } else {
+            updated.esic_deduction = 0;
+          }
+        }
+      }
+      return updated;
+    });
+  };
+
   const submitEdit = async () => {
     setProcessing(true);
     const res = await fetch(`/api/payroll/${editingRecord.id}`, {
@@ -523,11 +564,11 @@ export default function PayrollPage() {
               <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                 <div className="form-group">
                   <label className="form-label">Total Working Days</label>
-                  <input type="number" className="form-input" value={editFormData.total_working_days} onChange={e => setEditFormData({ ...editFormData, total_working_days: e.target.value })} />
+                  <input type="number" className="form-input" value={editFormData.total_working_days} onChange={e => handleDaysChange('total_working_days', e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Paid Days</label>
-                  <input type="number" className="form-input" value={editFormData.paid_days} onChange={e => setEditFormData({ ...editFormData, paid_days: e.target.value })} />
+                  <input type="number" className="form-input" value={editFormData.paid_days} onChange={e => handleDaysChange('paid_days', e.target.value)} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Basic Salary</label>
