@@ -209,12 +209,12 @@ export default function EditEmployeePage({ params }) {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">PF Override Amount (₹)</label>
-                  <input type="number" className="form-input" placeholder="Leave blank for default" value={form.pf_override ?? ''} onChange={e => updateField('pf_override', e.target.value)} />
+                  <label className="form-label">PF Override Percentage (%)</label>
+                  <input type="number" step="0.01" className="form-input" placeholder="Leave blank for default" value={form.pf_override ?? ''} onChange={e => updateField('pf_override', e.target.value)} />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">ESI Override Amount (₹)</label>
-                  <input type="number" className="form-input" placeholder="Leave blank for default" value={form.esic_override ?? ''} onChange={e => updateField('esic_override', e.target.value)} />
+                  <label className="form-label">ESI Override Percentage (%)</label>
+                  <input type="number" step="0.01" className="form-input" placeholder="Leave blank for default" value={form.esic_override ?? ''} onChange={e => updateField('esic_override', e.target.value)} />
                 </div>
               </div>
             </div>

@@ -372,11 +372,11 @@ export default function EmployeeDetailPage({ params }) {
               </div>
               <div className="detail-item">
                 <span className="detail-label">PF Override</span>
-                <span className="detail-value">{emp.pf_override !== null && emp.pf_override !== undefined ? <span className="badge badge-warning">Fixed: {formatCurrency(emp.pf_override)}</span> : 'Default'}</span>
+                <span className="detail-value">{emp.pf_override !== null && emp.pf_override !== undefined ? <span className="badge badge-warning">Fixed: {emp.pf_override}%</span> : 'Default'}</span>
               </div>
               <div className="detail-item">
                 <span className="detail-label">ESI Override</span>
-                <span className="detail-value">{emp.esic_override !== null && emp.esic_override !== undefined ? <span className="badge badge-warning">Fixed: {formatCurrency(emp.esic_override)}</span> : 'Default'}</span>
+                <span className="detail-value">{emp.esic_override !== null && emp.esic_override !== undefined ? <span className="badge badge-warning">Fixed: {emp.esic_override}%</span> : 'Default'}</span>
               </div>
               <div className="detail-item">
                 <span className="detail-label">PT State</span>
