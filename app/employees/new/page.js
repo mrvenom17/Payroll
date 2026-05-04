@@ -37,9 +37,9 @@ export default function NewEmployeePage() {
   // Salary structure: 'auto' uses template (Basic = 50% of gross, HRA = 40% of basic, etc.)
   // 'manual' lets user enter each component amount individually.
   const [salaryMode, setSalaryMode] = useState('auto');
-  const [template, setTemplate] = useState({ basic_pct: 50, hra_pct: 40, conv: 1600, med: 1250 });
+  const [template, setTemplate] = useState({ basic_pct: 50, hra_pct: 40, conv: 1600, petrol: 0, med: 1250 });
   const [manualComponents, setManualComponents] = useState({
-    BASIC: '', HRA: '', CONV: '', MED: '', SPL: '',
+    BASIC: '', HRA: '', CONV: '', PETROL: '', MED: '', SPL: '',
   });
 
   useEffect(() => {
@@ -49,6 +49,7 @@ export default function NewEmployeePage() {
         basic_pct: Number(s.template_basic_pct ?? 50),
         hra_pct: Number(s.template_hra_pct ?? 40),
         conv: Number(s.template_conv_amount ?? 1600),
+        petrol: Number(s.template_petrol_amount ?? 0),
         med: Number(s.template_med_amount ?? 1250),
       });
     }).catch(() => {});
@@ -421,13 +422,15 @@ export default function NewEmployeePage() {
                       const basic = Math.round(monthly * (template.basic_pct / 100));
                       const hra = Math.round(basic * (template.hra_pct / 100));
                       const conv = template.conv;
+                      const petrol = template.petrol;
                       const med = template.med;
-                      const special = Math.max(monthly - basic - hra - conv - med, 0);
+                      const special = Math.max(monthly - basic - hra - conv - petrol - med, 0);
                       return (
                         <div style={{ padding: 12, background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', fontSize: 13 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>Basic ({template.basic_pct}%)</span><span className="font-bold">₹{basic.toLocaleString('en-IN')}</span></div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>HRA ({template.hra_pct}% of Basic)</span><span>₹{hra.toLocaleString('en-IN')}</span></div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>Conveyance</span><span>₹{conv.toLocaleString('en-IN')}</span></div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>Petrol Allowance</span><span>₹{petrol.toLocaleString('en-IN')}</span></div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}><span>Medical</span><span>₹{med.toLocaleString('en-IN')}</span></div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--gray-200)', paddingTop: 4 }}><span>Special Allowance</span><span>₹{special.toLocaleString('en-IN')}</span></div>
                         </div>
@@ -449,6 +452,7 @@ export default function NewEmployeePage() {
                         ['BASIC', 'Basic Salary'],
                         ['HRA', 'House Rent Allowance'],
                         ['CONV', 'Conveyance'],
+                        ['PETROL', 'Petrol Allowance'],
                         ['MED', 'Medical'],
                         ['SPL', 'Special Allowance'],
                       ].map(([code, label]) => {

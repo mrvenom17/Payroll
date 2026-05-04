@@ -139,13 +139,17 @@ export async function POST(request) {
         const basic = Math.round((compMap['BASIC'] || 0) * payRatio);
         const hra = Math.round((compMap['HRA'] || 0) * payRatio);
         const conv = Math.round((compMap['CONV'] || 0) * payRatio);
+        const petrol = Math.round((compMap['PETROL'] || 0) * payRatio);
         const med = Math.round((compMap['MED'] || 0) * payRatio);
         const spl = Math.round((compMap['SPL'] || 0) * payRatio);
         const bonus = 0;
         const overtime = 0;
         const arrears = 0;
         const reimbursements = 0;
-        const grossEarnings = basic + hra + conv + med + spl + bonus + overtime + arrears + reimbursements;
+        const grossEarnings = basic + hra + conv + petrol + med + spl + bonus + overtime + arrears + reimbursements;
+
+        // ESI base excludes Conveyance and Petrol Allowance (per statutory practice)
+        const esicBase = Math.max(grossEarnings - conv - petrol, 0);
 
         // Statutory deductions
         // PF calculated on pro-rated basic (already adjusted for attendance)
@@ -159,10 +163,10 @@ export async function POST(request) {
         }
 
         let esicDeduction = 0;
-        const esicResult = calculateESIC(grossEarnings);
+        const esicResult = calculateESIC(esicBase);
         let employerEsic = esicResult.applicable ? esicResult.employerContribution : 0;
         if (emp.esic_override !== null && emp.esic_override !== undefined) {
-          esicDeduction = Math.round(grossEarnings * (Number(emp.esic_override) / 100));
+          esicDeduction = Math.round(esicBase * (Number(emp.esic_override) / 100));
         } else {
           esicDeduction = esicResult.applicable ? esicResult.employeeContribution : 0;
         }
@@ -198,13 +202,14 @@ export async function POST(request) {
         const payrollId = generateId();
         await conn.execute(`
           INSERT INTO payroll (id, employee_id, month, year, total_working_days, paid_days,
-            basic_salary, hra, conveyance, medical, special_allowance, bonus, overtime, arrears, reimbursements, gross_earnings,
+            basic_salary, hra, conveyance, petrol_allowance, medical, special_allowance, bonus, overtime, arrears, reimbursements, gross_earnings,
             pf_deduction, esic_deduction, pt_deduction, tds_deduction, loan_deduction, advance_deduction, other_deductions, total_deductions,
             net_salary, employer_pf, employer_esic, status)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE
             total_working_days = VALUES(total_working_days), paid_days = VALUES(paid_days),
             basic_salary = VALUES(basic_salary), hra = VALUES(hra), conveyance = VALUES(conveyance),
+            petrol_allowance = VALUES(petrol_allowance),
             medical = VALUES(medical), special_allowance = VALUES(special_allowance),
             bonus = VALUES(bonus), overtime = VALUES(overtime), arrears = VALUES(arrears),
             reimbursements = VALUES(reimbursements), gross_earnings = VALUES(gross_earnings),
@@ -217,7 +222,7 @@ export async function POST(request) {
             updated_at = NOW()
         `, [
           payrollId, emp.id, month, year, totalWorkingDays, paidDays,
-          basic, hra, conv, med, spl, bonus, overtime, arrears, reimbursements, grossEarnings,
+          basic, hra, conv, petrol, med, spl, bonus, overtime, arrears, reimbursements, grossEarnings,
           pfDeduction, esicDeduction, ptDeduction, tdsDeduction, loanDeduction, 0, 0, totalDeductions,
           netSalary, employerPf, employerEsic, 'DRAFT'
         ]);

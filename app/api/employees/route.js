@@ -136,6 +136,7 @@ export async function POST(request) {
       const tBasicPct = await setting('template_basic_pct', 50);
       const tHraPct = await setting('template_hra_pct', 40);
       const tConv = await setting('template_conv_amount', 1600);
+      const tPetrol = await setting('template_petrol_amount', 0);
       const tMed = await setting('template_med_amount', 1250);
 
       // Resolve the components by code
@@ -153,12 +154,14 @@ export async function POST(request) {
         const basic = Math.round(monthly * (tBasicPct / 100));
         const hra = Math.round(basic * (tHraPct / 100));
         const conv = tConv;
+        const petrol = tPetrol;
         const med = tMed;
-        const special = Math.max(monthly - basic - hra - conv - med, 0);
+        const special = Math.max(monthly - basic - hra - conv - petrol - med, 0);
         comps = [
           { component_id: codeToId.BASIC, monthly: basic },
           { component_id: codeToId.HRA, monthly: hra },
           { component_id: codeToId.CONV, monthly: conv },
+          ...(petrol > 0 ? [{ component_id: codeToId.PETROL, monthly: petrol }] : []),
           { component_id: codeToId.MED, monthly: med },
           { component_id: codeToId.SPL, monthly: special },
         ].filter(c => c.component_id);

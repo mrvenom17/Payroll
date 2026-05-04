@@ -84,6 +84,7 @@ export async function GET(request) {
       if (s.component_code === 'BASIC' && payrollRecord.basic_salary !== undefined && payrollRecord.basic_salary !== null) actual = payrollRecord.basic_salary;
       else if (s.component_code === 'HRA' && payrollRecord.hra !== undefined && payrollRecord.hra !== null) actual = payrollRecord.hra;
       else if (s.component_code === 'CONV' && payrollRecord.conveyance !== undefined && payrollRecord.conveyance !== null) actual = payrollRecord.conveyance;
+      else if (s.component_code === 'PETROL' && payrollRecord.petrol_allowance !== undefined && payrollRecord.petrol_allowance !== null) actual = payrollRecord.petrol_allowance;
       else if (s.component_code === 'MED' && payrollRecord.medical !== undefined && payrollRecord.medical !== null) actual = payrollRecord.medical;
       else if (s.component_code === 'SPL' && payrollRecord.special_allowance !== undefined && payrollRecord.special_allowance !== null) actual = payrollRecord.special_allowance;
       return {

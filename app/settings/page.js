@@ -17,6 +17,7 @@ export default function SettingsPage() {
     template_basic_pct: 50,
     template_hra_pct: 40,
     template_conv_amount: 1600,
+    template_petrol_amount: 0,
     template_med_amount: 1250,
   });
   const [editingTemplate, setEditingTemplate] = useState(false);
@@ -326,9 +327,14 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Conveyance — fixed (₹/mo)</label>
+                  <label className="form-label">Conveyance — fixed (₹/mo) <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>(excl. PF/ESI)</span></label>
                   <input type="number" className="form-input" min={0} value={integrations.template_conv_amount}
                     onChange={e => setIntegrations(p => ({ ...p, template_conv_amount: parseFloat(e.target.value) || 0 }))} />
+                </div>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label className="form-label">Petrol Allowance — fixed (₹/mo) <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>(excl. PF/ESI)</span></label>
+                  <input type="number" className="form-input" min={0} value={integrations.template_petrol_amount}
+                    onChange={e => setIntegrations(p => ({ ...p, template_petrol_amount: parseFloat(e.target.value) || 0 }))} />
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label className="form-label">Medical — fixed (₹/mo)</label>
@@ -336,7 +342,7 @@ export default function SettingsPage() {
                     onChange={e => setIntegrations(p => ({ ...p, template_med_amount: parseFloat(e.target.value) || 0 }))} />
                 </div>
                 <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--text-tertiary)' }}>
-                  💡 Special Allowance is the balancing component (Gross − Basic − HRA − Conv − Med). Click "Save Settings" above to persist.
+                  💡 Special Allowance is the balancing component (Gross − Basic − HRA − Conv − Petrol − Med). Click "Save Settings" above to persist.
                 </div>
               </div>
             ) : (
@@ -344,7 +350,8 @@ export default function SettingsPage() {
                 {[
                   { component: 'Basic', formula: `${integrations.template_basic_pct}% of Gross` },
                   { component: 'HRA', formula: `${integrations.template_hra_pct}% of Basic` },
-                  { component: 'Conveyance', formula: `₹${Number(integrations.template_conv_amount).toLocaleString('en-IN')} fixed` },
+                  { component: 'Conveyance', formula: `₹${Number(integrations.template_conv_amount).toLocaleString('en-IN')} fixed (excl. PF/ESI)` },
+                  { component: 'Petrol Allowance', formula: `₹${Number(integrations.template_petrol_amount).toLocaleString('en-IN')} fixed (excl. PF/ESI)` },
                   { component: 'Medical', formula: `₹${Number(integrations.template_med_amount).toLocaleString('en-IN')} fixed` },
                   { component: 'Special Allowance', formula: 'Gross − Others (balancing)' },
                 ].map((c, i) => (

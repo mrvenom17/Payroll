@@ -202,6 +202,7 @@ export default function PayrollPage() {
       basic_salary: record.basic_salary || 0,
       hra: record.hra || 0,
       conveyance: record.conveyance || 0,
+      petrol_allowance: record.petrol_allowance || 0,
       medical: record.medical || 0,
       special_allowance: record.special_allowance || 0,
       gross_earnings: record.gross_earnings || 0,
@@ -241,17 +242,20 @@ export default function PayrollPage() {
           updated.basic_salary = recalc('BASIC', editingRecord.basic_salary);
           updated.hra = recalc('HRA', editingRecord.hra);
           updated.conveyance = recalc('CONV', editingRecord.conveyance);
+          updated.petrol_allowance = recalc('PETROL', editingRecord.petrol_allowance);
           updated.medical = recalc('MED', editingRecord.medical);
           updated.special_allowance = recalc('SPL', editingRecord.special_allowance);
-          
-          updated.gross_earnings = updated.basic_salary + updated.hra + updated.conveyance + updated.medical + updated.special_allowance;
-          
+
+          updated.gross_earnings = updated.basic_salary + updated.hra + updated.conveyance + updated.petrol_allowance + updated.medical + updated.special_allowance;
+
           // Re-calculate deductions
           updated.pf_deduction = Math.round(updated.basic_salary * 0.12);
-          
+
+          // ESI base excludes Conveyance & Petrol Allowance
+          const esicBase = Math.max(updated.gross_earnings - updated.conveyance - updated.petrol_allowance, 0);
           const fullGross = (editingRecord.gross_earnings * oldTotal) / oldPaid;
           if (fullGross <= 21000) {
-            updated.esic_deduction = Math.round(updated.gross_earnings * 0.0075);
+            updated.esic_deduction = Math.round(esicBase * 0.0075);
           } else {
             updated.esic_deduction = 0;
           }
@@ -582,6 +586,14 @@ export default function PayrollPage() {
                 <div className="form-group">
                   <label className="form-label">HRA</label>
                   <input type="number" className="form-input" value={editFormData.hra} onChange={e => setEditFormData({ ...editFormData, hra: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Conveyance <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>(excl. PF/ESI)</span></label>
+                  <input type="number" className="form-input" value={editFormData.conveyance} onChange={e => setEditFormData({ ...editFormData, conveyance: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Petrol Allowance <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>(excl. PF/ESI)</span></label>
+                  <input type="number" className="form-input" value={editFormData.petrol_allowance} onChange={e => setEditFormData({ ...editFormData, petrol_allowance: e.target.value })} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Gross Earnings</label>

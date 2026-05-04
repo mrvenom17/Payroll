@@ -22,6 +22,7 @@ export async function PUT(request, { params }) {
       basic_salary,
       hra,
       conveyance,
+      petrol_allowance,
       medical,
       special_allowance,
       gross_earnings
@@ -51,6 +52,7 @@ export async function PUT(request, { params }) {
       basic_salary: safeNumber(basic_salary, record.basic_salary),
       hra: safeNumber(hra, record.hra),
       conveyance: safeNumber(conveyance, record.conveyance),
+      petrol_allowance: safeNumber(petrol_allowance, record.petrol_allowance),
       medical: safeNumber(medical, record.medical),
       special_allowance: safeNumber(special_allowance, record.special_allowance),
       gross_earnings: safeNumber(gross_earnings, record.gross_earnings),
@@ -77,17 +79,17 @@ export async function PUT(request, { params }) {
     const net_salary = Math.max(update.gross_earnings - total_deductions, 0);
 
     await pool.execute(`
-      UPDATE payroll 
-      SET 
+      UPDATE payroll
+      SET
         total_working_days = ?, paid_days = ?,
-        basic_salary = ?, hra = ?, conveyance = ?, medical = ?, special_allowance = ?, gross_earnings = ?,
-        pf_deduction = ?, esic_deduction = ?, pt_deduction = ?, tds_deduction = ?, 
-        loan_deduction = ?, advance_deduction = ?, other_deductions = ?, 
+        basic_salary = ?, hra = ?, conveyance = ?, petrol_allowance = ?, medical = ?, special_allowance = ?, gross_earnings = ?,
+        pf_deduction = ?, esic_deduction = ?, pt_deduction = ?, tds_deduction = ?,
+        loan_deduction = ?, advance_deduction = ?, other_deductions = ?,
         total_deductions = ?, net_salary = ?, updated_at = NOW()
       WHERE id = ?
     `, [
       update.total_working_days, update.paid_days,
-      update.basic_salary, update.hra, update.conveyance, update.medical, update.special_allowance, update.gross_earnings,
+      update.basic_salary, update.hra, update.conveyance, update.petrol_allowance, update.medical, update.special_allowance, update.gross_earnings,
       update.pf_deduction, update.esic_deduction, update.pt_deduction, update.tds_deduction,
       update.loan_deduction, update.advance_deduction, update.other_deductions,
       total_deductions, net_salary, id

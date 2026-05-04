@@ -68,6 +68,7 @@ export default function SalaryRegisterPage() {
                     <th style={{ textAlign: 'right' }}>Basic</th>
                     <th style={{ textAlign: 'right' }}>HRA</th>
                     <th style={{ textAlign: 'right' }}>Conv.</th>
+                    <th style={{ textAlign: 'right' }}>Petrol</th>
                     <th style={{ textAlign: 'right' }}>Medical</th>
                     <th style={{ textAlign: 'right' }}>Special</th>
                     <th style={{ textAlign: 'right', fontWeight: 700 }}>Gross</th>
@@ -93,6 +94,7 @@ export default function SalaryRegisterPage() {
                       <td className="currency text-right">{fmt(r.basic_salary)}</td>
                       <td className="currency text-right">{fmt(r.hra)}</td>
                       <td className="currency text-right">{fmt(r.conveyance)}</td>
+                      <td className="currency text-right">{fmt(r.petrol_allowance)}</td>
                       <td className="currency text-right">{fmt(r.medical)}</td>
                       <td className="currency text-right">{fmt(r.special_allowance)}</td>
                       <td className="currency text-right font-bold text-success">{fmt(r.gross_earnings)}</td>
@@ -114,6 +116,7 @@ export default function SalaryRegisterPage() {
                     <td className="currency text-right">{fmt(records.reduce((s, r) => s + r.basic_salary, 0))}</td>
                     <td className="currency text-right">{fmt(records.reduce((s, r) => s + r.hra, 0))}</td>
                     <td className="currency text-right">{fmt(records.reduce((s, r) => s + r.conveyance, 0))}</td>
+                    <td className="currency text-right">{fmt(records.reduce((s, r) => s + (r.petrol_allowance || 0), 0))}</td>
                     <td className="currency text-right">{fmt(records.reduce((s, r) => s + r.medical, 0))}</td>
                     <td className="currency text-right">{fmt(records.reduce((s, r) => s + r.special_allowance, 0))}</td>
                     <td className="currency text-right text-success">{fmt(summary.totalGross)}</td>
