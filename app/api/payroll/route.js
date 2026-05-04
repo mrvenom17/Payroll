@@ -149,13 +149,27 @@ export async function POST(request) {
 
         // Statutory deductions
         // PF calculated on pro-rated basic (already adjusted for attendance)
-        const pfResult = calculatePF(basic);
-        const pfDeduction = pfResult.employeeContribution;
-        const employerPf = pfResult.employerContribution;
+        let pfDeduction = 0;
+        let employerPf = 0;
+        if (emp.pf_override !== null && emp.pf_override !== undefined) {
+          pfDeduction = Number(emp.pf_override);
+          employerPf = Number(emp.pf_override);
+        } else {
+          const pfResult = calculatePF(basic);
+          pfDeduction = pfResult.employeeContribution;
+          employerPf = pfResult.employerContribution;
+        }
 
+        let esicDeduction = 0;
+        let employerEsic = 0;
         const esicResult = calculateESIC(grossEarnings);
-        const esicDeduction = esicResult.applicable ? esicResult.employeeContribution : 0;
-        const employerEsic = esicResult.applicable ? esicResult.employerContribution : 0;
+        if (emp.esic_override !== null && emp.esic_override !== undefined) {
+          esicDeduction = Number(emp.esic_override);
+          employerEsic = esicResult.applicable ? esicResult.employerContribution : 0;
+        } else {
+          esicDeduction = esicResult.applicable ? esicResult.employeeContribution : 0;
+          employerEsic = esicResult.applicable ? esicResult.employerContribution : 0;
+        }
 
         const ptResult = calculatePT(emp.ctc_annual || 0, month);
         const ptDeduction = ptResult.monthlyAmount || 0;

@@ -98,6 +98,8 @@ CREATE TABLE IF NOT EXISTS employees (
   uan                     VARCHAR(30),
   pf_number               VARCHAR(50),
   esic_number             VARCHAR(30),
+  pf_override             DECIMAL(14,2) DEFAULT NULL,
+  esic_override           DECIMAL(14,2) DEFAULT NULL,
   pt_state                VARCHAR(10) DEFAULT 'MP',
   lwf_applicable          TINYINT(1) DEFAULT 1,
   tds_applicable          TINYINT(1) DEFAULT 1,

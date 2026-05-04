@@ -145,14 +145,14 @@ export default function DashboardPage() {
         <div className="stat-card stat-card--success">
           <div>
             <div className="stat-value">{data.attendance?.present || 0}</div>
-            <div className="stat-label">Present Today</div>
+            <div className="stat-label">Present Days (MTD)</div>
           </div>
           <div className="stat-icon stat-icon--success">✓</div>
         </div>
         <div className="stat-card stat-card--danger">
           <div>
             <div className="stat-value">{data.attendance?.absent || 0}</div>
-            <div className="stat-label">Absent</div>
+            <div className="stat-label">Absent Days (MTD)</div>
           </div>
           <div className="stat-icon stat-icon--danger">✗</div>
         </div>

@@ -105,7 +105,7 @@ export async function PUT(request, { params }) {
       'department_id', 'designation', 'reporting_manager_id',
       'employment_type', 'work_location', 'probation_end_date',
       'pan_number', 'aadhaar_number', 'uan', 'pf_number',
-      'esic_number', 'pt_state', 'lwf_applicable', 'tds_applicable',
+      'esic_number', 'pf_override', 'esic_override', 'pt_state', 'lwf_applicable', 'tds_applicable',
       'previous_employer_income', 'previous_employer_tds',
       'bank_name', 'account_number', 'ifsc_code', 'branch_name',
       'payment_mode', 'tax_regime', 'skill_category',

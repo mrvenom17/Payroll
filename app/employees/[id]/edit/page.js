@@ -197,9 +197,25 @@ export default function EditEmployeePage({ params }) {
                   <input className="form-input" value={form.pf_number || ''} onChange={e => updateField('pf_number', e.target.value)} />
                 </div>
               </div>
-              <div className="form-group">
-                <label className="form-label">ESIC Number</label>
-                <input className="form-input" value={form.esic_number || ''} onChange={e => updateField('esic_number', e.target.value)} />
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">ESIC Number</label>
+                  <input className="form-input" value={form.esic_number || ''} onChange={e => updateField('esic_number', e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">PT State</label>
+                  <input className="form-input" value={form.pt_state || ''} onChange={e => updateField('pt_state', e.target.value)} />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">PF Override Amount (₹)</label>
+                  <input type="number" className="form-input" placeholder="Leave blank for default" value={form.pf_override ?? ''} onChange={e => updateField('pf_override', e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">ESI Override Amount (₹)</label>
+                  <input type="number" className="form-input" placeholder="Leave blank for default" value={form.esic_override ?? ''} onChange={e => updateField('esic_override', e.target.value)} />
+                </div>
               </div>
             </div>
           </div>

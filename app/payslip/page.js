@@ -85,6 +85,25 @@ function PayslipContent() {
 
   return (
     <div className="animate-fade-in">
+      <style>{`
+        @media print {
+          @page { size: A4; margin: 10mm; }
+          body * { visibility: hidden; }
+          #payslip-preview, #payslip-preview * { visibility: visible; }
+          #payslip-preview { 
+            position: absolute; 
+            left: 0; 
+            top: 0; 
+            width: 100%; 
+            max-width: 100% !important; 
+            box-shadow: none !important;
+            border: 1px solid #ccc !important;
+            page-break-inside: avoid;
+            transform: scale(0.98);
+            transform-origin: top center;
+          }
+        }
+      `}</style>
       <div className="page-header-row">
         <div>
           <h1 className="page-title">🧾 Payslip</h1>
