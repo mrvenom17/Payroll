@@ -24,6 +24,28 @@ export async function GET(request) {
       ORDER BY e.employee_code ASC
     `, [companyId, month, year]);
 
+    if (records.length > 0) {
+      const empIds = records.map(r => r.employee_id);
+      const placeholders = empIds.map(() => '?').join(',');
+      const [salaryDetails] = await pool.execute(`
+        SELECT ss.employee_id, sc.code as component_code, ssd.monthly_amount
+        FROM salary_structure_details ssd
+        JOIN salary_components sc ON sc.id = ssd.component_id
+        JOIN salary_structures ss ON ss.id = ssd.salary_structure_id
+        WHERE ss.employee_id IN (${placeholders})
+      `, empIds);
+      
+      const salaryMap = {};
+      salaryDetails.forEach(s => {
+        if (!salaryMap[s.employee_id]) salaryMap[s.employee_id] = {};
+        salaryMap[s.employee_id][s.component_code] = s.monthly_amount;
+      });
+      
+      records.forEach(r => {
+        r.full_components = salaryMap[r.employee_id] || {};
+      });
+    }
+
     const summary = {
       totalGross: records.reduce((s, r) => s + (r.gross_earnings || 0), 0),
       totalDeductions: records.reduce((s, r) => s + (r.total_deductions || 0), 0),

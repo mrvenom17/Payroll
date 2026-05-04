@@ -227,17 +227,22 @@ export default function PayrollPage() {
       if (oldPaid > 0 && oldTotal > 0 && newTotal > 0) {
         // Only trigger recalculation if the ratio actually changed
         if (newPaid !== oldPaid || newTotal !== oldTotal) {
-          const recalc = (oldAmt) => {
-            if (!oldAmt) return 0;
-            const fullAmt = (oldAmt * oldTotal) / oldPaid;
-            return Math.round((fullAmt / newTotal) * newPaid);
+          const recalc = (code, fallbackValue) => {
+            const fullAmt = editingRecord.full_components?.[code];
+            if (fullAmt !== undefined) {
+              return Math.round((fullAmt / newTotal) * newPaid);
+            }
+            // Fallback to reverse calculation if full_components isn't available
+            if (!fallbackValue) return 0;
+            const reversedFullAmt = (fallbackValue * oldTotal) / oldPaid;
+            return Math.round((reversedFullAmt / newTotal) * newPaid);
           };
           
-          updated.basic_salary = recalc(editingRecord.basic_salary);
-          updated.hra = recalc(editingRecord.hra);
-          updated.conveyance = recalc(editingRecord.conveyance);
-          updated.medical = recalc(editingRecord.medical);
-          updated.special_allowance = recalc(editingRecord.special_allowance);
+          updated.basic_salary = recalc('BASIC', editingRecord.basic_salary);
+          updated.hra = recalc('HRA', editingRecord.hra);
+          updated.conveyance = recalc('CONV', editingRecord.conveyance);
+          updated.medical = recalc('MED', editingRecord.medical);
+          updated.special_allowance = recalc('SPL', editingRecord.special_allowance);
           
           updated.gross_earnings = updated.basic_salary + updated.hra + updated.conveyance + updated.medical + updated.special_allowance;
           
