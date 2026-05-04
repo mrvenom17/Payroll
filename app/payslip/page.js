@@ -259,21 +259,25 @@ function PayslipContent() {
             </div>
 
             {/* Company Contributions */}
-            <div style={{ padding: '16px 32px', borderTop: '1px solid var(--border-light)', margin: '16px 0 0', fontSize: 13 }}>
-              <div style={{ color: 'var(--text-tertiary)', fontWeight: 600, marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Company Contributions</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)' }}>
-                  <span>PF @ 12% (Employer)</span>
-                  <strong>{formatINR(payslip.employerContributions.pf)}</strong>
+            {(payslip.employerContributions.pf > 0 || payslip.employerContributions.esic > 0) && (
+              <div style={{ padding: '16px 32px', borderTop: '1px solid var(--border-light)', margin: '16px 0 0', fontSize: 13 }}>
+                <div style={{ color: 'var(--text-tertiary)', fontWeight: 600, marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Company Contributions</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {payslip.employerContributions.pf > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)' }}>
+                      <span>PF @ 12% (Employer)</span>
+                      <strong>{formatINR(payslip.employerContributions.pf)}</strong>
+                    </div>
+                  )}
+                  {payslip.employerContributions.esic > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)' }}>
+                      <span>ESI @ 3.25% (Employer)</span>
+                      <strong>{formatINR(payslip.employerContributions.esic)}</strong>
+                    </div>
+                  )}
                 </div>
-                {payslip.employerContributions.esic > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)' }}>
-                    <span>ESI @ 3.25% (Employer)</span>
-                    <strong>{formatINR(payslip.employerContributions.esic)}</strong>
-                  </div>
-                )}
               </div>
-            </div>
+            )}
 
             {/* Footer */}
             <div style={{ padding: '16px 32px', background: 'var(--gray-50)', borderRadius: '0 0 var(--radius-lg) var(--radius-lg)', fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center' }}>
