@@ -6,24 +6,24 @@ import { useSearchParams } from 'next/navigation';
 function formatINR(amt) { return '₹' + Number(amt || 0).toLocaleString('en-IN'); }
 function numberToWords(num) {
   if (num === 0) return 'Zero';
-  const ones = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
-  const tens = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
-  const scales = ['','Thousand','Lakh','Crore'];
+  const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  const scales = ['', 'Thousand', 'Lakh', 'Crore'];
   if (num < 20) return ones[num];
-  if (num < 100) return tens[Math.floor(num/10)] + (num%10 ? ' ' + ones[num%10] : '');
-  if (num < 1000) return ones[Math.floor(num/100)] + ' Hundred' + (num%100 ? ' and ' + numberToWords(num%100) : '');
+  if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 ? ' ' + ones[num % 10] : '');
+  if (num < 1000) return ones[Math.floor(num / 100)] + ' Hundred' + (num % 100 ? ' and ' + numberToWords(num % 100) : '');
   // Indian numbering
   if (num < 100000) {
-    const t = Math.floor(num/1000);
+    const t = Math.floor(num / 1000);
     const r = num % 1000;
     return numberToWords(t) + ' Thousand' + (r ? ' ' + numberToWords(r) : '');
   }
   if (num < 10000000) {
-    const l = Math.floor(num/100000);
+    const l = Math.floor(num / 100000);
     const r = num % 100000;
     return numberToWords(l) + ' Lakh' + (r ? ' ' + numberToWords(r) : '');
   }
-  const c = Math.floor(num/10000000);
+  const c = Math.floor(num / 10000000);
   const r = num % 10000000;
   return numberToWords(c) + ' Crore' + (r ? ' ' + numberToWords(r) : '');
 }
@@ -81,7 +81,7 @@ function PayslipContent() {
   };
 
   const handlePrint = () => window.print();
-  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
   return (
     <div className="animate-fade-in">
@@ -260,7 +260,7 @@ function PayslipContent() {
 
             {/* Company Contributions */}
             <div style={{ padding: '16px 32px', borderTop: '1px solid var(--border-light)', margin: '16px 0 0', fontSize: 13 }}>
-              <div style={{ color: 'var(--text-tertiary)', fontWeight: 600, marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Company Contributions (not deducted from salary)</div>
+              <div style={{ color: 'var(--text-tertiary)', fontWeight: 600, marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Company Contributions</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)' }}>
                   <span>PF @ 12% (Employer)</span>
