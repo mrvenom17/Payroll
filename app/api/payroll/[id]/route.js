@@ -4,7 +4,7 @@ import { getPool } from '@/lib/db';
 export async function PUT(request, { params }) {
   try {
     const pool = getPool();
-    const id = params.id;
+    const { id } = await params;
     const body = await request.json();
     
     // We expect the body to contain the updated deductions/earnings
@@ -38,23 +38,29 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Only draft payrolls can be edited' }, { status: 400 });
     }
 
+    const safeNumber = (val, fallback) => {
+      if (val === undefined || val === null || val === '') return fallback;
+      const num = Number(val);
+      return isNaN(num) ? fallback : num;
+    };
+
     // Use updated values or fall back to existing
     const update = {
-      total_working_days: total_working_days !== undefined ? Number(total_working_days) : record.total_working_days,
-      paid_days: paid_days !== undefined ? Number(paid_days) : record.paid_days,
-      basic_salary: basic_salary !== undefined ? Number(basic_salary) : record.basic_salary,
-      hra: hra !== undefined ? Number(hra) : record.hra,
-      conveyance: conveyance !== undefined ? Number(conveyance) : record.conveyance,
-      medical: medical !== undefined ? Number(medical) : record.medical,
-      special_allowance: special_allowance !== undefined ? Number(special_allowance) : record.special_allowance,
-      gross_earnings: gross_earnings !== undefined ? Number(gross_earnings) : record.gross_earnings,
-      pf_deduction: pf_deduction !== undefined ? Number(pf_deduction) : record.pf_deduction,
-      esic_deduction: esic_deduction !== undefined ? Number(esic_deduction) : record.esic_deduction,
-      pt_deduction: pt_deduction !== undefined ? Number(pt_deduction) : record.pt_deduction,
-      tds_deduction: tds_deduction !== undefined ? Number(tds_deduction) : record.tds_deduction,
-      loan_deduction: loan_deduction !== undefined ? Number(loan_deduction) : record.loan_deduction,
-      advance_deduction: advance_deduction !== undefined ? Number(advance_deduction) : record.advance_deduction,
-      other_deductions: other_deductions !== undefined ? Number(other_deductions) : record.other_deductions,
+      total_working_days: safeNumber(total_working_days, record.total_working_days),
+      paid_days: safeNumber(paid_days, record.paid_days),
+      basic_salary: safeNumber(basic_salary, record.basic_salary),
+      hra: safeNumber(hra, record.hra),
+      conveyance: safeNumber(conveyance, record.conveyance),
+      medical: safeNumber(medical, record.medical),
+      special_allowance: safeNumber(special_allowance, record.special_allowance),
+      gross_earnings: safeNumber(gross_earnings, record.gross_earnings),
+      pf_deduction: safeNumber(pf_deduction, record.pf_deduction),
+      esic_deduction: safeNumber(esic_deduction, record.esic_deduction),
+      pt_deduction: safeNumber(pt_deduction, record.pt_deduction),
+      tds_deduction: safeNumber(tds_deduction, record.tds_deduction),
+      loan_deduction: safeNumber(loan_deduction, record.loan_deduction),
+      advance_deduction: safeNumber(advance_deduction, record.advance_deduction),
+      other_deductions: safeNumber(other_deductions, record.other_deductions),
     };
 
     // Calculate total deductions
