@@ -1,13 +1,39 @@
 const mysql = require('mysql2/promise');
+const fs = require('fs');
+const path = require('path');
+
+// Load .env.local manually (no dotenv dependency)
+function loadEnvLocal() {
+  const envPath = path.join(__dirname, '.env.local');
+  if (!fs.existsSync(envPath)) return;
+  const content = fs.readFileSync(envPath, 'utf8');
+  for (const rawLine of content.split('\n')) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const eq = line.indexOf('=');
+    if (eq === -1) continue;
+    const key = line.slice(0, eq).trim();
+    let val = line.slice(eq + 1).trim();
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    if (!process.env[key]) process.env[key] = val;
+  }
+}
+
+loadEnvLocal();
 
 async function main() {
-  const connection = await mysql.createConnection({
-    host: '192.168.1.12',
-    port: 3306,
-    user: 'payroll_app',
-    password: 'Payroll@SecurePass123',
-    database: 'payroll_db'
-  });
+  const cfg = {
+    host: process.env.MYSQL_HOST || '127.0.0.1',
+    port: parseInt(process.env.MYSQL_PORT || '3306', 10),
+    user: process.env.MYSQL_USER || 'payroll_app',
+    password: process.env.MYSQL_PASSWORD || '',
+    database: process.env.MYSQL_DATABASE || 'payroll_db',
+  };
+  console.log(`Connecting to ${cfg.user}@${cfg.host}:${cfg.port}/${cfg.database} ...`);
+
+  const connection = await mysql.createConnection(cfg);
 
   const tryExec = async (label, sql) => {
     try {
@@ -43,4 +69,7 @@ async function main() {
   }
 }
 
-main();
+main().catch(err => {
+  console.error('Migration failed:', err.message);
+  process.exit(1);
+});
