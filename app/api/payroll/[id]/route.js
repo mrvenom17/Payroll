@@ -10,6 +10,8 @@ export async function PUT(request, { params }) {
     // We expect the body to contain the updated deductions/earnings
     // At minimum, if we are editing deductions:
     const { 
+      total_working_days,
+      paid_days,
       pf_deduction, 
       esic_deduction, 
       pt_deduction, 
@@ -38,6 +40,8 @@ export async function PUT(request, { params }) {
 
     // Use updated values or fall back to existing
     const update = {
+      total_working_days: total_working_days !== undefined ? Number(total_working_days) : record.total_working_days,
+      paid_days: paid_days !== undefined ? Number(paid_days) : record.paid_days,
       basic_salary: basic_salary !== undefined ? Number(basic_salary) : record.basic_salary,
       hra: hra !== undefined ? Number(hra) : record.hra,
       conveyance: conveyance !== undefined ? Number(conveyance) : record.conveyance,
@@ -69,12 +73,14 @@ export async function PUT(request, { params }) {
     await pool.execute(`
       UPDATE payroll 
       SET 
+        total_working_days = ?, paid_days = ?,
         basic_salary = ?, hra = ?, conveyance = ?, medical = ?, special_allowance = ?, gross_earnings = ?,
         pf_deduction = ?, esic_deduction = ?, pt_deduction = ?, tds_deduction = ?, 
         loan_deduction = ?, advance_deduction = ?, other_deductions = ?, 
         total_deductions = ?, net_salary = ?, updated_at = NOW()
       WHERE id = ?
     `, [
+      update.total_working_days, update.paid_days,
       update.basic_salary, update.hra, update.conveyance, update.medical, update.special_allowance, update.gross_earnings,
       update.pf_deduction, update.esic_deduction, update.pt_deduction, update.tds_deduction,
       update.loan_deduction, update.advance_deduction, update.other_deductions,

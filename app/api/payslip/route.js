@@ -57,25 +57,35 @@ export async function GET(request) {
     );
 
     // Build payslip using payroll record values (already correctly calculated)
-    const workingDays = payrollRecord.total_working_days || attendance?.total_working_days || 22;
+    const workingDays = payrollRecord.total_working_days !== undefined && payrollRecord.total_working_days !== null 
+      ? payrollRecord.total_working_days 
+      : (attendance?.total_working_days || 22);
 
     // Compute paid days using the same safe formula as payroll processing
     const unpaidLeaves = attendance?.unpaid_leaves || 0;
     const absentDays = attendance?.absent_days || 0;
     const halfDays = attendance?.half_days || 0;
-    const lossOfPay = unpaidLeaves + absentDays + (halfDays * 0.5);
-    const presentDays = payrollRecord.paid_days || Math.max(workingDays - lossOfPay, 0);
+    let lossOfPay = unpaidLeaves + absentDays + (halfDays * 0.5);
+    
+    let presentDays = 0;
+    if (payrollRecord.paid_days !== undefined && payrollRecord.paid_days !== null) {
+      presentDays = payrollRecord.paid_days;
+      // Recalculate loss of pay based on the payroll record explicitly
+      lossOfPay = Math.max(workingDays - presentDays, 0);
+    } else {
+      presentDays = Math.max(workingDays - lossOfPay, 0);
+    }
 
     // Build earnings from salary components, but use payroll-record pro-rated amounts
     const payRatio = workingDays > 0 ? presentDays / workingDays : 1;
     const earnings = salaryDetails.filter(s => s.component_type === 'EARNING').map(s => {
       // Map known component codes to payroll record columns
       let actual = Math.round(s.monthly_amount * payRatio);
-      if (s.component_code === 'BASIC') actual = payrollRecord.basic_salary || actual;
-      else if (s.component_code === 'HRA') actual = payrollRecord.hra || actual;
-      else if (s.component_code === 'CONV') actual = payrollRecord.conveyance || actual;
-      else if (s.component_code === 'MED') actual = payrollRecord.medical || actual;
-      else if (s.component_code === 'SPL') actual = payrollRecord.special_allowance || actual;
+      if (s.component_code === 'BASIC' && payrollRecord.basic_salary !== undefined && payrollRecord.basic_salary !== null) actual = payrollRecord.basic_salary;
+      else if (s.component_code === 'HRA' && payrollRecord.hra !== undefined && payrollRecord.hra !== null) actual = payrollRecord.hra;
+      else if (s.component_code === 'CONV' && payrollRecord.conveyance !== undefined && payrollRecord.conveyance !== null) actual = payrollRecord.conveyance;
+      else if (s.component_code === 'MED' && payrollRecord.medical !== undefined && payrollRecord.medical !== null) actual = payrollRecord.medical;
+      else if (s.component_code === 'SPL' && payrollRecord.special_allowance !== undefined && payrollRecord.special_allowance !== null) actual = payrollRecord.special_allowance;
       return {
         name: s.component_name,
         code: s.component_code,
@@ -84,37 +94,44 @@ export async function GET(request) {
       };
     });
 
-    const totalEarnings = payrollRecord.gross_earnings || earnings.reduce((sum, e) => sum + e.actual, 0);
+    const totalEarnings = payrollRecord.gross_earnings !== undefined && payrollRecord.gross_earnings !== null 
+      ? payrollRecord.gross_earnings 
+      : earnings.reduce((sum, e) => sum + e.actual, 0);
 
     // Build deductions from the payroll record (authoritative source)
     const deductions = [];
-    const pfDeduction = payrollRecord.pf_deduction || 0;
+    const pfDeduction = payrollRecord.pf_deduction !== undefined && payrollRecord.pf_deduction !== null ? payrollRecord.pf_deduction : 0;
     if (pfDeduction > 0) deductions.push({ name: 'Provident Fund @ 12% (Employee)', amount: pfDeduction });
 
-    const esicDeduction = payrollRecord.esic_deduction || 0;
+    const esicDeduction = payrollRecord.esic_deduction !== undefined && payrollRecord.esic_deduction !== null ? payrollRecord.esic_deduction : 0;
     if (esicDeduction > 0) deductions.push({ name: 'ESI @ 0.75% (Employee)', amount: esicDeduction });
 
-    const ptData = payrollRecord.pt_deduction || 0;
+    const ptData = payrollRecord.pt_deduction !== undefined && payrollRecord.pt_deduction !== null ? payrollRecord.pt_deduction : 0;
     if (ptData > 0) deductions.push({ name: 'Professional Tax', amount: ptData });
 
-    const tds = payrollRecord.tds_deduction || 0;
+    const tds = payrollRecord.tds_deduction !== undefined && payrollRecord.tds_deduction !== null ? payrollRecord.tds_deduction : 0;
     if (tds > 0) deductions.push({ name: 'TDS', amount: tds });
 
-    const loanDeduction = payrollRecord.loan_deduction || 0;
+    const loanDeduction = payrollRecord.loan_deduction !== undefined && payrollRecord.loan_deduction !== null ? payrollRecord.loan_deduction : 0;
     if (loanDeduction > 0) deductions.push({ name: 'Loan Deduction', amount: loanDeduction });
 
-    const advanceDeduction = payrollRecord.advance_deduction || 0;
+    const advanceDeduction = payrollRecord.advance_deduction !== undefined && payrollRecord.advance_deduction !== null ? payrollRecord.advance_deduction : 0;
     if (advanceDeduction > 0) deductions.push({ name: 'Advance Deduction', amount: advanceDeduction });
 
-    const otherDeductions = payrollRecord.other_deductions || 0;
+    const otherDeductions = payrollRecord.other_deductions !== undefined && payrollRecord.other_deductions !== null ? payrollRecord.other_deductions : 0;
     if (otherDeductions > 0) deductions.push({ name: 'Other Deductions', amount: otherDeductions });
 
-    const totalDeductions = payrollRecord.total_deductions || deductions.reduce((sum, d) => sum + d.amount, 0);
-    const netPayable = payrollRecord.net_salary || (totalEarnings - totalDeductions);
+    const totalDeductions = payrollRecord.total_deductions !== undefined && payrollRecord.total_deductions !== null 
+      ? payrollRecord.total_deductions 
+      : deductions.reduce((sum, d) => sum + d.amount, 0);
+      
+    const netPayable = payrollRecord.net_salary !== undefined && payrollRecord.net_salary !== null 
+      ? payrollRecord.net_salary 
+      : Math.max(totalEarnings - totalDeductions, 0);
 
     // Employer contributions from payroll record
-    const pfEmployer = payrollRecord.employer_pf || 0;
-    const esicEmployer = payrollRecord.employer_esic || 0;
+    const pfEmployer = payrollRecord.employer_pf !== undefined && payrollRecord.employer_pf !== null ? payrollRecord.employer_pf : 0;
+    const esicEmployer = payrollRecord.employer_esic !== undefined && payrollRecord.employer_esic !== null ? payrollRecord.employer_esic : 0;
 
     return NextResponse.json({
       payslip: {
@@ -146,7 +163,7 @@ export async function GET(request) {
           workingDays,
           presentDays,
           lop: lossOfPay,
-          lwp: unpaidLeaves + absentDays, // Total unpaid days (LWP = unpaid leaves + absent days)
+          lwp: lossOfPay, // Making this consistent with actual loss of pay
           halfDays: attendance?.half_days || 0,
           holidays: attendance?.holidays || 0,
           sundays: attendance?.sundays || 0,

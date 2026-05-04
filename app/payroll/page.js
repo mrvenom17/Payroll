@@ -197,6 +197,8 @@ export default function PayrollPage() {
   const openEditModal = (record) => {
     setEditingRecord(record);
     setEditFormData({
+      total_working_days: record.total_working_days || 0,
+      paid_days: record.paid_days !== undefined && record.paid_days !== null ? record.paid_days : (record.total_working_days || 0),
       basic_salary: record.basic_salary || 0,
       hra: record.hra || 0,
       conveyance: record.conveyance || 0,
@@ -519,6 +521,14 @@ export default function PayrollPage() {
                 You are manually overriding the calculated deductions/earnings for this employee.
               </div>
               <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label">Total Working Days</label>
+                  <input type="number" className="form-input" value={editFormData.total_working_days} onChange={e => setEditFormData({ ...editFormData, total_working_days: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Paid Days</label>
+                  <input type="number" className="form-input" value={editFormData.paid_days} onChange={e => setEditFormData({ ...editFormData, paid_days: e.target.value })} />
+                </div>
                 <div className="form-group">
                   <label className="form-label">Basic Salary</label>
                   <input type="number" className="form-input" value={editFormData.basic_salary} onChange={e => setEditFormData({ ...editFormData, basic_salary: e.target.value })} />
