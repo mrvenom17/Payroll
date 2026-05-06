@@ -87,20 +87,23 @@ function PayslipContent() {
     <div className="animate-fade-in">
       <style>{`
         @media print {
-          @page { size: A4; margin: 10mm; }
+          @page { size: A4; margin: 0; }
+          html, body { height: 100vh; margin: 0 !important; padding: 0 !important; overflow: hidden; background: white; }
           body * { visibility: hidden; }
           #payslip-preview, #payslip-preview * { visibility: visible; }
           #payslip-preview { 
             position: absolute; 
-            left: 0; 
-            top: 0; 
-            width: 100%; 
-            max-width: 100% !important; 
+            left: 10mm; 
+            top: 10mm; 
+            width: calc(100% - 20mm); 
+            max-width: none !important; 
             box-shadow: none !important;
             border: 1px solid #ccc !important;
             page-break-inside: avoid;
             transform: scale(0.98);
-            transform-origin: top center;
+            transform-origin: top left;
+            margin: 0;
+            padding: 0;
           }
         }
       `}</style>

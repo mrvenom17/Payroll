@@ -157,18 +157,34 @@ export async function POST(request) {
         let pfDeduction = 0;
         let employerPf = pfResult.employerContribution;
         if (emp.pf_override !== null && emp.pf_override !== undefined) {
-          pfDeduction = Math.round(basic * (Number(emp.pf_override) / 100));
+          const overrideVal = Number(emp.pf_override);
+          pfDeduction = Math.round(basic * (overrideVal / 100));
+          if (overrideVal === 0) {
+            employerPf = 0;
+          }
         } else {
           pfDeduction = pfResult.employeeContribution;
         }
 
+        // Calculate full month gross for ESI applicability
+        const fullGross = (compMap['BASIC'] || 0) + (compMap['HRA'] || 0) + (compMap['CONV'] || 0) + (compMap['PETROL'] || 0) + (compMap['MED'] || 0) + (compMap['SPL'] || 0);
+        const fullEsicBase = Math.max(fullGross - (compMap['CONV'] || 0) - (compMap['PETROL'] || 0), 0);
+        const isEsicApplicable = fullEsicBase <= 21000;
+
         let esicDeduction = 0;
-        const esicResult = calculateESIC(esicBase);
-        let employerEsic = esicResult.applicable ? esicResult.employerContribution : 0;
+        let employerEsic = 0;
         if (emp.esic_override !== null && emp.esic_override !== undefined) {
-          esicDeduction = Math.round(esicBase * (Number(emp.esic_override) / 100));
-        } else {
-          esicDeduction = esicResult.applicable ? esicResult.employeeContribution : 0;
+          const overrideVal = Number(emp.esic_override);
+          esicDeduction = Math.round(esicBase * (overrideVal / 100));
+          if (overrideVal > 0) {
+            employerEsic = Math.round(esicBase * 0.0325);
+          } else {
+            employerEsic = 0;
+          }
+        } else if (isEsicApplicable) {
+          const esicResult = calculateESIC(esicBase);
+          esicDeduction = esicResult.employeeContribution;
+          employerEsic = esicResult.employerContribution;
         }
 
         const ptResult = calculatePT(emp.ctc_annual || 0, month);

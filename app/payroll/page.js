@@ -213,6 +213,8 @@ export default function PayrollPage() {
       loan_deduction: record.loan_deduction || 0,
       advance_deduction: record.advance_deduction || 0,
       other_deductions: record.other_deductions || 0,
+      employer_pf: record.employer_pf || 0,
+      employer_esic: record.employer_esic || 0,
     });
   };
 
@@ -614,6 +616,14 @@ export default function PayrollPage() {
                 <div className="form-group">
                   <label className="form-label">TDS Deduction</label>
                   <input type="number" className="form-input" value={editFormData.tds_deduction} onChange={e => setEditFormData({ ...editFormData, tds_deduction: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Employer PF</label>
+                  <input type="number" className="form-input" value={editFormData.employer_pf} onChange={e => setEditFormData({ ...editFormData, employer_pf: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Employer ESI</label>
+                  <input type="number" className="form-input" value={editFormData.employer_esic} onChange={e => setEditFormData({ ...editFormData, employer_esic: e.target.value })} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Other Deductions</label>

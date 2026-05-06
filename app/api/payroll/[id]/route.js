@@ -25,7 +25,9 @@ export async function PUT(request, { params }) {
       petrol_allowance,
       medical,
       special_allowance,
-      gross_earnings
+      gross_earnings,
+      employer_pf,
+      employer_esic
     } = body;
 
     // Fetch the current record
@@ -63,6 +65,8 @@ export async function PUT(request, { params }) {
       loan_deduction: safeNumber(loan_deduction, record.loan_deduction),
       advance_deduction: safeNumber(advance_deduction, record.advance_deduction),
       other_deductions: safeNumber(other_deductions, record.other_deductions),
+      employer_pf: safeNumber(employer_pf, record.employer_pf),
+      employer_esic: safeNumber(employer_esic, record.employer_esic),
     };
 
     // Calculate total deductions
@@ -85,6 +89,7 @@ export async function PUT(request, { params }) {
         basic_salary = ?, hra = ?, conveyance = ?, petrol_allowance = ?, medical = ?, special_allowance = ?, gross_earnings = ?,
         pf_deduction = ?, esic_deduction = ?, pt_deduction = ?, tds_deduction = ?,
         loan_deduction = ?, advance_deduction = ?, other_deductions = ?,
+        employer_pf = ?, employer_esic = ?,
         total_deductions = ?, net_salary = ?, updated_at = NOW()
       WHERE id = ?
     `, [
@@ -92,6 +97,7 @@ export async function PUT(request, { params }) {
       update.basic_salary, update.hra, update.conveyance, update.petrol_allowance, update.medical, update.special_allowance, update.gross_earnings,
       update.pf_deduction, update.esic_deduction, update.pt_deduction, update.tds_deduction,
       update.loan_deduction, update.advance_deduction, update.other_deductions,
+      update.employer_pf, update.employer_esic,
       total_deductions, net_salary, id
     ]);
 
