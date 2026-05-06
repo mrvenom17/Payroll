@@ -182,7 +182,7 @@ export async function POST(request) {
             employerEsic = 0;
           }
         } else if (isEsicApplicable) {
-          const esicResult = calculateESIC(esicBase);
+          const esicResult = calculateESIC(esicBase, false, fullEsicBase);
           esicDeduction = esicResult.employeeContribution;
           employerEsic = esicResult.employerContribution;
         }
@@ -256,7 +256,7 @@ export async function POST(request) {
     try {
       await pool.execute(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [generateId(), companyId, 'PAYROLL_PROCESSED', 'payroll', `${month}-${year}`, JSON.stringify({ month, year, count: employees.length }), 'system']);
-    } catch(e) { /* non-critical */ }
+    } catch(e) { console.error('audit error:', e.message); }
 
     return NextResponse.json({ success: true, processedCount: employees.length });
   } catch (error) {
@@ -282,7 +282,7 @@ export async function PUT(request) {
       try {
         await pool.execute(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [generateId(), companyId, 'PAYROLL_APPROVED', 'payroll', `${month}-${year}`, JSON.stringify({ month, year }), 'system']);
-      } catch(e) { /* non-critical */ }
+      } catch(e) { console.error('audit error:', e.message); }
     } else if (action === 'mark_paid') {
       await pool.execute(`
         UPDATE payroll SET status = 'PAID', paid_at = NOW(), updated_at = NOW()
@@ -293,7 +293,7 @@ export async function PUT(request) {
       try {
         await pool.execute(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [generateId(), companyId, 'PAYROLL_PAID', 'payroll', `${month}-${year}`, JSON.stringify({ month, year }), 'system']);
-      } catch(e) { /* non-critical */ }
+      } catch(e) { console.error('audit error:', e.message); }
     }
 
     return NextResponse.json({ success: true });

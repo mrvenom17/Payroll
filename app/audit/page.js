@@ -18,14 +18,14 @@ export default function AuditLogsPage() {
   }, [filter]);
 
   const actionIcons = {
-    PAYROLL_PROCESSED: '🔄', PAYROLL_APPROVED: '✅', PAYROLL_PAID: '💰',
+    PAYROLL_PROCESSED: '🔄', PAYROLL_APPROVED: '✅', PAYROLL_PAID: '💰', PAYROLL_UPDATED: '✏️',
     EMPLOYEE_CREATED: '👤', EMPLOYEE_UPDATED: '✏️', EMPLOYEE_DELETED: '🗑️',
     FNF_PROCESSED: '📝', LOAN_CREATED: '🏦', SALARY_REVISED: '💵',
     ATTENDANCE_SAVED: '📅',
   };
 
   const actionColors = {
-    PAYROLL_PROCESSED: 'info', PAYROLL_APPROVED: 'success', PAYROLL_PAID: 'success',
+    PAYROLL_PROCESSED: 'info', PAYROLL_APPROVED: 'success', PAYROLL_PAID: 'success', PAYROLL_UPDATED: 'warning',
     EMPLOYEE_CREATED: 'primary', EMPLOYEE_UPDATED: 'warning', EMPLOYEE_DELETED: 'danger',
     FNF_PROCESSED: 'purple', LOAN_CREATED: 'info', SALARY_REVISED: 'warning',
     ATTENDANCE_SAVED: 'info',

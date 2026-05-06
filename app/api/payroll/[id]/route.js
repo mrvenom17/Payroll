@@ -101,6 +101,13 @@ export async function PUT(request, { params }) {
       total_deductions, net_salary, id
     ]);
 
+    try {
+      // Find company_id to associate with audit log
+      const [[empData]] = await pool.execute(`SELECT company_id FROM employees WHERE id = ?`, [record.employee_id]);
+      await pool.execute(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [require('@/lib/db').generateId(), empData.company_id, 'PAYROLL_UPDATED', 'payroll', id, JSON.stringify({ old_net: record.net_salary, new_net: net_salary }), 'admin']);
+    } catch (e) { console.error('audit log error:', e.message); }
+
     return NextResponse.json({ success: true, total_deductions, net_salary });
   } catch (error) {
     console.error('Edit payroll error:', error);
