@@ -37,10 +37,6 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: 'Payroll record not found' }, { status: 404 });
     }
 
-    if (record.status !== 'DRAFT') {
-      return NextResponse.json({ error: 'Only draft payrolls can be edited' }, { status: 400 });
-    }
-
     const safeNumber = (val, fallback) => {
       if (val === undefined || val === null || val === '') return fallback;
       const num = Number(val);
@@ -57,7 +53,6 @@ export async function PUT(request, { params }) {
       petrol_allowance: safeNumber(petrol_allowance, record.petrol_allowance),
       medical: safeNumber(medical, record.medical),
       special_allowance: safeNumber(special_allowance, record.special_allowance),
-      gross_earnings: safeNumber(gross_earnings, record.gross_earnings),
       pf_deduction: safeNumber(pf_deduction, record.pf_deduction),
       esic_deduction: safeNumber(esic_deduction, record.esic_deduction),
       pt_deduction: safeNumber(pt_deduction, record.pt_deduction),
@@ -69,18 +64,30 @@ export async function PUT(request, { params }) {
       employer_esic: safeNumber(employer_esic, record.employer_esic),
     };
 
-    // Calculate total deductions
-    const total_deductions = 
-      update.pf_deduction + 
-      update.esic_deduction + 
-      update.pt_deduction + 
-      update.tds_deduction + 
-      update.loan_deduction + 
-      update.advance_deduction + 
+    // Recompute gross_earnings from earnings line items so totals never drift from displayed values.
+    const grossEarnings =
+      (update.basic_salary || 0) +
+      (update.hra || 0) +
+      (update.conveyance || 0) +
+      (update.petrol_allowance || 0) +
+      (update.medical || 0) +
+      (update.special_allowance || 0);
+    update.gross_earnings = grossEarnings;
+
+    const total_deductions =
+      update.pf_deduction +
+      update.esic_deduction +
+      update.pt_deduction +
+      update.tds_deduction +
+      update.loan_deduction +
+      update.advance_deduction +
       update.other_deductions;
 
-    // Calculate net salary
-    const net_salary = Math.max(update.gross_earnings - total_deductions, 0);
+    // CTC-inclusive: employer PF/ESIC are baked into gross, so subtract them from net.
+    const net_salary = Math.max(
+      grossEarnings - total_deductions - update.employer_pf - update.employer_esic,
+      0
+    );
 
     await pool.execute(`
       UPDATE payroll

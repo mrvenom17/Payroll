@@ -36,6 +36,16 @@ export default function PayslipPage() {
   );
 }
 
+const DEDUCTION_FIELDS = [
+  { key: 'pf_deduction', label: 'Provident Fund (Employee)' },
+  { key: 'esic_deduction', label: 'ESI (Employee)' },
+  { key: 'pt_deduction', label: 'Professional Tax' },
+  { key: 'tds_deduction', label: 'TDS' },
+  { key: 'loan_deduction', label: 'Loan Deduction' },
+  { key: 'advance_deduction', label: 'Advance Deduction' },
+  { key: 'other_deductions', label: 'Other Deductions' },
+];
+
 function PayslipContent() {
   const searchParams = useSearchParams();
   const [employees, setEmployees] = useState([]);
@@ -45,6 +55,9 @@ function PayslipContent() {
   const [payslip, setPayslip] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [editing, setEditing] = useState(false);
+  const [edits, setEdits] = useState({});
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     fetch(`/api/employees?company=${localStorage.getItem('active_company') || ''}&status=active`)
@@ -65,7 +78,7 @@ function PayslipContent() {
   }, [selectedEmp, month, year]);
 
   const loadPayslip = async () => {
-    setLoading(true); setError(''); setPayslip(null);
+    setLoading(true); setError(''); setPayslip(null); setEditing(false);
     try {
       const res = await fetch(`/api/payslip?company=${localStorage.getItem('active_company') || ''}&employee=${selectedEmp}&month=${month}&year=${year}`);
       const d = await res.json();
@@ -81,6 +94,60 @@ function PayslipContent() {
   };
 
   const handlePrint = () => window.print();
+
+  const startEdit = () => {
+    if (!payslip) return;
+    setEdits({ ...payslip.editable });
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setEdits({});
+  };
+
+  const updateEdit = (key, raw) => {
+    const num = raw === '' ? 0 : Number(raw);
+    setEdits(prev => ({ ...prev, [key]: isNaN(num) ? 0 : num }));
+  };
+
+  const saveEdits = async () => {
+    if (!payslip?.payrollId) return;
+    setSaving(true); setError('');
+    try {
+      const res = await fetch(`/api/payroll/${payslip.payrollId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(edits),
+      });
+      const d = await res.json();
+      if (!res.ok) {
+        setError(d.error || 'Failed to save');
+      } else {
+        await loadPayslip();
+      }
+    } catch (e) {
+      setError('Failed to save edits');
+    }
+    setSaving(false);
+  };
+
+  // Live totals while editing.
+  const liveEarningsTotal = editing && payslip
+    ? payslip.allEarnings.reduce((s, e) => s + (Number(edits[e.column]) || 0), 0)
+    : payslip?.totalEarnings || 0;
+
+  const liveDeductionsTotal = editing
+    ? DEDUCTION_FIELDS.reduce((s, f) => s + (Number(edits[f.key]) || 0), 0)
+    : payslip?.totalDeductions || 0;
+
+  const liveEmployerTotal = editing
+    ? (Number(edits.employer_pf) || 0) + (Number(edits.employer_esic) || 0)
+    : (payslip?.employerContributions?.total || 0);
+
+  const liveNetPayable = editing
+    ? Math.max(liveEarningsTotal - liveDeductionsTotal - liveEmployerTotal, 0)
+    : (payslip?.netPayable || 0);
   const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
   return (
@@ -91,6 +158,7 @@ function PayslipContent() {
           html, body { height: 100vh; margin: 0 !important; padding: 0 !important; overflow: hidden; background: white; }
           body * { visibility: hidden; }
           #payslip-preview, #payslip-preview * { visibility: visible; }
+          #payslip-preview .no-print, #payslip-preview .no-print * { display: none !important; }
           #payslip-preview { 
             position: absolute; 
             left: 10mm; 
@@ -112,8 +180,19 @@ function PayslipContent() {
           <h1 className="page-title">🧾 Payslip</h1>
           <p className="page-subtitle">View and print employee payslips</p>
         </div>
-        {payslip && (
-          <button onClick={handlePrint} className="btn btn-primary">🖨️ Print Payslip</button>
+        {payslip && !editing && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={startEdit} className="btn btn-secondary">✏️ Edit</button>
+            <button onClick={handlePrint} className="btn btn-primary">🖨️ Print Payslip</button>
+          </div>
+        )}
+        {payslip && editing && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={cancelEdit} className="btn btn-secondary" disabled={saving}>Cancel</button>
+            <button onClick={saveEdits} className="btn btn-primary" disabled={saving}>
+              {saving ? 'Saving…' : '💾 Save'}
+            </button>
+          </div>
         )}
       </div>
 
@@ -216,35 +295,93 @@ function PayslipContent() {
               {/* Earnings */}
               <div style={{ borderRight: '1px solid var(--border-light)', paddingRight: 24, paddingTop: 20, paddingBottom: 20 }}>
                 <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--success)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 }}>Earnings</h4>
-                {payslip.earnings.map((e, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--gray-100)', fontSize: 13 }}>
+                {(editing ? payslip.allEarnings : payslip.earnings).map((e, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--gray-100)', fontSize: 13 }}>
                     <span>{e.name}</span>
-                    <span style={{ fontWeight: 600 }}>{formatINR(e.actual)}</span>
+                    {editing ? (
+                      <input
+                        type="number"
+                        className="form-input"
+                        style={{ width: 110, textAlign: 'right', padding: '4px 8px', fontSize: 13 }}
+                        value={edits[e.column] ?? 0}
+                        onChange={ev => updateEdit(e.column, ev.target.value)}
+                      />
+                    ) : (
+                      <span style={{ fontWeight: 600 }}>{formatINR(e.actual)}</span>
+                    )}
                   </div>
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', fontSize: 14, fontWeight: 800, color: 'var(--success)' }}>
                   <span>Total Earnings</span>
-                  <span>{formatINR(payslip.totalEarnings)}</span>
+                  <span>{formatINR(liveEarningsTotal)}</span>
                 </div>
               </div>
               {/* Deductions */}
               <div style={{ paddingLeft: 24, paddingTop: 20, paddingBottom: 20 }}>
                 <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--danger)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 16 }}>Deductions</h4>
-                {payslip.deductions.map((d, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--gray-100)', fontSize: 13 }}>
-                    <span>{d.name}</span>
-                    <span style={{ fontWeight: 600, color: 'var(--danger)' }}>{formatINR(d.amount)}</span>
-                  </div>
-                ))}
-                {payslip.deductions.length === 0 && (
-                  <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No deductions</p>
+                {editing ? (
+                  DEDUCTION_FIELDS.map((f, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--gray-100)', fontSize: 13 }}>
+                      <span>{f.label}</span>
+                      <input
+                        type="number"
+                        className="form-input"
+                        style={{ width: 110, textAlign: 'right', padding: '4px 8px', fontSize: 13 }}
+                        value={edits[f.key] ?? 0}
+                        onChange={ev => updateEdit(f.key, ev.target.value)}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    {payslip.deductions.map((d, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--gray-100)', fontSize: 13 }}>
+                        <span>{d.name}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--danger)' }}>{formatINR(d.amount)}</span>
+                      </div>
+                    ))}
+                    {payslip.deductions.length === 0 && (
+                      <p style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>No deductions</p>
+                    )}
+                  </>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', fontSize: 14, fontWeight: 800, color: 'var(--danger)' }}>
                   <span>Total Deductions</span>
-                  <span>{formatINR(payslip.totalDeductions)}</span>
+                  <span>{formatINR(liveDeductionsTotal)}</span>
                 </div>
               </div>
             </div>
+
+            {/* Employer-side fields — editable only, never displayed on the printed payslip */}
+            {editing && (
+              <div className="no-print" style={{ margin: '0 32px 16px', padding: '12px 16px', background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', fontSize: 12 }}>
+                <div style={{ color: 'var(--text-tertiary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+                  Employer contributions (subtracted from Net Payable in CTC mode — not shown on payslip)
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Employer PF</span>
+                    <input
+                      type="number"
+                      className="form-input"
+                      style={{ width: 110, textAlign: 'right', padding: '4px 8px', fontSize: 13 }}
+                      value={edits.employer_pf ?? 0}
+                      onChange={ev => updateEdit('employer_pf', ev.target.value)}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Employer ESIC</span>
+                    <input
+                      type="number"
+                      className="form-input"
+                      style={{ width: 110, textAlign: 'right', padding: '4px 8px', fontSize: 13 }}
+                      value={edits.employer_esic ?? 0}
+                      onChange={ev => updateEdit('employer_esic', ev.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Net Payable */}
             <div style={{
@@ -255,32 +392,11 @@ function PayslipContent() {
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>Net Payable</div>
                 <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginTop: 4 }}>
-                  ({numberToWords(payslip.netPayable)} Rupees Only)
+                  ({numberToWords(liveNetPayable)} Rupees Only)
                 </div>
               </div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--primary)' }}>{formatINR(payslip.netPayable)}</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--primary)' }}>{formatINR(liveNetPayable)}</div>
             </div>
-
-            {/* Company Contributions */}
-            {(payslip.employerContributions.pf > 0 || payslip.employerContributions.esic > 0) && (
-              <div style={{ padding: '16px 32px', borderTop: '1px solid var(--border-light)', margin: '16px 0 0', fontSize: 13 }}>
-                <div style={{ color: 'var(--text-tertiary)', fontWeight: 600, marginBottom: 8, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>Company Contributions</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {payslip.employerContributions.pf > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)' }}>
-                      <span>PF @ 12% (Employer)</span>
-                      <strong>{formatINR(payslip.employerContributions.pf)}</strong>
-                    </div>
-                  )}
-                  {payslip.employerContributions.esic > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', background: 'var(--gray-50)', borderRadius: 'var(--radius-sm)' }}>
-                      <span>ESI @ 3.25% (Employer)</span>
-                      <strong>{formatINR(payslip.employerContributions.esic)}</strong>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* Footer */}
             <div style={{ padding: '16px 32px', background: 'var(--gray-50)', borderRadius: '0 0 var(--radius-lg) var(--radius-lg)', fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center' }}>

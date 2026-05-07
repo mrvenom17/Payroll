@@ -213,7 +213,8 @@ export async function POST(request) {
         }
 
         const totalDeductions = pfDeduction + esicDeduction + ptDeduction + tdsDeduction + loanDeduction;
-        const netSalary = Math.max(grossEarnings - totalDeductions, 0);
+        // CTC-inclusive: employer PF/ESIC are baked into gross, so subtract them from net.
+        const netSalary = Math.max(grossEarnings - totalDeductions - employerPf - employerEsic, 0);
 
         const payrollId = generateId();
         await conn.execute(`

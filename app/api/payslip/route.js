@@ -76,28 +76,37 @@ export async function GET(request) {
       presentDays = Math.max(workingDays - lossOfPay, 0);
     }
 
-    // Build earnings from salary components, but use payroll-record pro-rated amounts
-    const payRatio = workingDays > 0 ? presentDays / workingDays : 1;
-    const earnings = salaryDetails.filter(s => s.component_type === 'EARNING').map(s => {
-      // Map known component codes to payroll record columns
-      let actual = Math.round(s.monthly_amount * payRatio);
-      if (s.component_code === 'BASIC' && payrollRecord.basic_salary !== undefined && payrollRecord.basic_salary !== null) actual = payrollRecord.basic_salary;
-      else if (s.component_code === 'HRA' && payrollRecord.hra !== undefined && payrollRecord.hra !== null) actual = payrollRecord.hra;
-      else if (s.component_code === 'CONV' && payrollRecord.conveyance !== undefined && payrollRecord.conveyance !== null) actual = payrollRecord.conveyance;
-      else if (s.component_code === 'PETROL' && payrollRecord.petrol_allowance !== undefined && payrollRecord.petrol_allowance !== null) actual = payrollRecord.petrol_allowance;
-      else if (s.component_code === 'MED' && payrollRecord.medical !== undefined && payrollRecord.medical !== null) actual = payrollRecord.medical;
-      else if (s.component_code === 'SPL' && payrollRecord.special_allowance !== undefined && payrollRecord.special_allowance !== null) actual = payrollRecord.special_allowance;
-      return {
-        name: s.component_name,
-        code: s.component_code,
-        monthly: s.monthly_amount,
-        actual,
-      };
-    });
+    // Snapshot-only: build earnings strictly from stored payroll-record columns.
+    // If the column is null, the component was not part of payroll when it was processed
+    // and is omitted from the payslip — no fallback to the current salary structure.
+    const codeToColumn = {
+      BASIC: 'basic_salary',
+      HRA: 'hra',
+      CONV: 'conveyance',
+      PETROL: 'petrol_allowance',
+      MED: 'medical',
+      SPL: 'special_allowance',
+    };
 
-    const totalEarnings = payrollRecord.gross_earnings !== undefined && payrollRecord.gross_earnings !== null 
-      ? payrollRecord.gross_earnings 
-      : earnings.reduce((sum, e) => sum + e.actual, 0);
+    // allEarnings: every earning from the structure (used by the edit form, including
+    // columns currently null). earnings: only those with a stored value (used for display).
+    const allEarnings = salaryDetails
+      .filter(s => s.component_type === 'EARNING')
+      .map(s => {
+        const col = codeToColumn[s.component_code];
+        if (!col) return null;
+        const stored = payrollRecord[col];
+        return {
+          name: s.component_name,
+          code: s.component_code,
+          column: col,
+          actual: stored === null || stored === undefined ? null : Number(stored),
+        };
+      })
+      .filter(Boolean);
+
+    const earnings = allEarnings.filter(e => e.actual !== null);
+    const totalEarnings = earnings.reduce((sum, e) => sum + e.actual, 0);
 
     // Build deductions from the payroll record (authoritative source)
     const deductions = [];
@@ -122,20 +131,41 @@ export async function GET(request) {
     const otherDeductions = payrollRecord.other_deductions !== undefined && payrollRecord.other_deductions !== null ? payrollRecord.other_deductions : 0;
     if (otherDeductions > 0) deductions.push({ name: 'Other Deductions', amount: otherDeductions });
 
-    const totalDeductions = payrollRecord.total_deductions !== undefined && payrollRecord.total_deductions !== null 
-      ? payrollRecord.total_deductions 
-      : deductions.reduce((sum, d) => sum + d.amount, 0);
-      
-    const netPayable = payrollRecord.net_salary !== undefined && payrollRecord.net_salary !== null 
-      ? payrollRecord.net_salary 
-      : Math.max(totalEarnings - totalDeductions, 0);
+    const totalDeductions = deductions.reduce((sum, d) => sum + d.amount, 0);
 
     // Employer contributions from payroll record
-    const pfEmployer = payrollRecord.employer_pf !== undefined && payrollRecord.employer_pf !== null ? payrollRecord.employer_pf : 0;
-    const esicEmployer = payrollRecord.employer_esic !== undefined && payrollRecord.employer_esic !== null ? payrollRecord.employer_esic : 0;
+    const pfEmployer = payrollRecord.employer_pf !== undefined && payrollRecord.employer_pf !== null ? Number(payrollRecord.employer_pf) : 0;
+    const esicEmployer = payrollRecord.employer_esic !== undefined && payrollRecord.employer_esic !== null ? Number(payrollRecord.employer_esic) : 0;
+
+    // CTC-inclusive net: employer PF/ESIC are already baked into gross, so subtract them too.
+    const netPayable = Math.max(totalEarnings - totalDeductions - pfEmployer - esicEmployer, 0);
+
+    // Raw values exposed for the manual edit form. Keeps employer-contribution
+    // fields editable even though they are not displayed on the payslip.
+    const editable = {
+      basic_salary: payrollRecord.basic_salary ?? null,
+      hra: payrollRecord.hra ?? null,
+      conveyance: payrollRecord.conveyance ?? null,
+      petrol_allowance: payrollRecord.petrol_allowance ?? null,
+      medical: payrollRecord.medical ?? null,
+      special_allowance: payrollRecord.special_allowance ?? null,
+      pf_deduction: pfDeduction,
+      esic_deduction: esicDeduction,
+      pt_deduction: ptData,
+      tds_deduction: tds,
+      loan_deduction: loanDeduction,
+      advance_deduction: advanceDeduction,
+      other_deductions: otherDeductions,
+      employer_pf: pfEmployer,
+      employer_esic: esicEmployer,
+      total_working_days: payrollRecord.total_working_days ?? null,
+      paid_days: payrollRecord.paid_days ?? null,
+    };
 
     return NextResponse.json({
       payslip: {
+        payrollId: payrollRecord.id,
+        editable,
         company: {
           name: company?.name || '',
           address: company?.address || '',
@@ -171,6 +201,7 @@ export async function GET(request) {
           overtime: attendance?.overtime_hours || 0,
         },
         earnings,
+        allEarnings,
         deductions,
         totalEarnings,
         totalDeductions,
