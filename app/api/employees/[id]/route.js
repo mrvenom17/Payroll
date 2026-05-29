@@ -69,10 +69,10 @@ export async function PUT(request, { params }) {
 
     // Normalize FK fields: empty/whitespace -> null, then verify referenced row exists
     const normalizeFk = (v) => {
-      if (v === undefined || v === null) return null;
-      if (typeof v !== 'string') return v;
+      if (!v) return null;
+      if (typeof v !== 'string') return null;
       const t = v.trim();
-      return t === '' || t.toLowerCase() === 'null' ? null : t;
+      return t === '' || t.toLowerCase() === 'null' || t.toLowerCase() === 'undefined' || t === '0' ? null : t;
     };
     if (body.reporting_manager_id !== undefined) body.reporting_manager_id = normalizeFk(body.reporting_manager_id);
     if (body.department_id !== undefined) body.department_id = normalizeFk(body.department_id);
