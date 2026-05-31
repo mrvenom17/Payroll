@@ -32,8 +32,8 @@ export async function POST(request) {
       user: { name: user.full_name, email: user.email, role: user.role },
     });
 
-    // HMAC-signed token — the previous plain-base64 form was trivially forgeable.
-    const token = createSessionToken({ uid: user.id, email: user.email, role: user.role });
+    // HMAC-signed token using Web Crypto API.
+    const token = await createSessionToken({ uid: user.id, email: user.email, role: user.role });
 
     response.cookies.set('auth_session', token, {
       httpOnly: true,

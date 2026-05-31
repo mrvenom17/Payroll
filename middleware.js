@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifySessionToken } from '@/lib/auth';
 
-export function middleware(request) {
+export async function middleware(request) {
   const path = request.nextUrl.pathname;
 
   // Public paths
@@ -10,7 +10,7 @@ export function middleware(request) {
   }
 
   const token = request.cookies.get('auth_session')?.value;
-  const session = verifySessionToken(token);
+  const session = await verifySessionToken(token);
 
   if (!session) {
     if (path.startsWith('/api/')) {
