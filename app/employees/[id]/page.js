@@ -710,7 +710,7 @@ export default function EmployeeDetailPage({ params }) {
                         <td>{doc.file_name}</td>
                         <td style={{ color: 'var(--text-tertiary)' }}>{new Date(doc.created_at).toLocaleDateString()}</td>
                         <td style={{ textAlign: 'right' }}>
-                          <a href={doc.file_path} target="_blank" rel="noreferrer" className="btn btn-sm btn-outline">👁️ View / Download</a>
+                          <a href={doc.file_path} rel="noreferrer" className="btn btn-sm btn-outline">👁️ View / Download</a>
                         </td>
                       </tr>
                     ))}
