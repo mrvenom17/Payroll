@@ -56,6 +56,14 @@ export async function GET(request) {
       [employeeId, month, year]
     );
 
+    // Get active advance/loan balance
+    const [loans] = await pool.execute(`
+      SELECT SUM(balance_outstanding) as total_outstanding
+      FROM loans 
+      WHERE employee_id = ? AND status = 'ACTIVE'
+    `, [employeeId]);
+    const advanceBalance = Number(loans[0]?.total_outstanding) || 0;
+
     // Build payslip using payroll record values (already correctly calculated)
     const workingDays = payrollRecord.total_working_days !== undefined && payrollRecord.total_working_days !== null 
       ? payrollRecord.total_working_days 
@@ -195,6 +203,7 @@ export async function GET(request) {
           esicNumber: employee.esic_number,
           bankName: employee.bank_name,
           accountNumber: employee.account_number,
+          advanceBalance: advanceBalance,
         },
         period: {
           month,

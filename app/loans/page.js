@@ -311,8 +311,8 @@ export default function LoansPage() {
                     {editing && <span className="form-hint">Loan amount cannot be changed after creation</span>}
                   </div>
                   <div className="form-group">
-                    <label className="form-label form-label-required">Monthly EMI (₹)</label>
-                    <input type="number" className="form-input" value={form.emi_amount} onChange={e => setForm(p => ({ ...p, emi_amount: e.target.value }))} required />
+                    <label className="form-label">Monthly EMI (₹)</label>
+                    <input type="number" className="form-input" value={form.emi_amount} onChange={e => setForm(p => ({ ...p, emi_amount: e.target.value }))} />
                     {form.loan_amount && form.emi_amount > 0 && (
                       <span className="form-hint">Duration: ~{Math.ceil((editing ? editing.balance_outstanding : form.loan_amount) / form.emi_amount)} months</span>
                     )}

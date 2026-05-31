@@ -43,15 +43,16 @@ export async function POST(request) {
 
     if (!body.employee_id) return NextResponse.json({ error: 'employee_id is required' }, { status: 400 });
     if (!body.loan_amount || body.loan_amount <= 0) return NextResponse.json({ error: 'loan_amount must be positive' }, { status: 400 });
-    if (!body.emi_amount || body.emi_amount <= 0) return NextResponse.json({ error: 'emi_amount must be positive' }, { status: 400 });
+
+    const emiAmount = body.emi_amount ? parseFloat(body.emi_amount) : 0;
+    const totalEmis = emiAmount > 0 ? Math.ceil(body.loan_amount / emiAmount) : 0;
 
     const id = generateId();
-    const totalEmis = Math.ceil(body.loan_amount / body.emi_amount);
 
     await pool.execute(`
       INSERT INTO loans (id, employee_id, loan_type, loan_amount, emi_amount, total_emis, balance_outstanding, start_date, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
-    `, [id, body.employee_id, body.loan_type || 'Advance', body.loan_amount, body.emi_amount, totalEmis, body.loan_amount, body.start_date || new Date().toISOString().split('T')[0]]);
+    `, [id, body.employee_id, body.loan_type || 'Advance', body.loan_amount, emiAmount, totalEmis, body.loan_amount, body.start_date || new Date().toISOString().split('T')[0]]);
 
     // Audit log
     try {
@@ -130,9 +131,9 @@ export async function PUT(request) {
     const values = [];
 
     if (body.loan_type !== undefined) { updates.push('loan_type = ?'); values.push(body.loan_type); }
-    if (body.emi_amount !== undefined && body.emi_amount > 0) {
+    if (body.emi_amount !== undefined && body.emi_amount >= 0) {
       const newEmi = parseFloat(body.emi_amount);
-      const newTotal = Math.ceil(loan.balance_outstanding / newEmi);
+      const newTotal = newEmi > 0 ? Math.ceil(loan.balance_outstanding / newEmi) : 0;
       updates.push('emi_amount = ?', 'total_emis = ?');
       values.push(newEmi, loan.paid_emis + newTotal);
     }
