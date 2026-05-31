@@ -106,6 +106,16 @@ export async function GET(request) {
       .filter(Boolean);
 
     const earnings = allEarnings.filter(e => e.actual !== null);
+    
+    if (payrollRecord.overtime !== undefined && payrollRecord.overtime !== null && Number(payrollRecord.overtime) > 0) {
+      earnings.push({
+        name: 'Extra Days (ED) Pay',
+        code: 'ED_PAY',
+        column: 'overtime',
+        actual: Number(payrollRecord.overtime),
+      });
+    }
+
     const totalEarnings = earnings.reduce((sum, e) => sum + e.actual, 0);
 
     // Build deductions from the payroll record (authoritative source)
@@ -149,6 +159,7 @@ export async function GET(request) {
       petrol_allowance: payrollRecord.petrol_allowance ?? null,
       medical: payrollRecord.medical ?? null,
       special_allowance: payrollRecord.special_allowance ?? null,
+      overtime: payrollRecord.overtime ?? null,
       pf_deduction: pfDeduction,
       esic_deduction: esicDeduction,
       pt_deduction: ptData,

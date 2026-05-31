@@ -142,8 +142,13 @@ export async function POST(request) {
         const petrol = Math.round((compMap['PETROL'] || 0) * payRatio);
         const med = Math.round((compMap['MED'] || 0) * payRatio);
         const spl = Math.round((compMap['SPL'] || 0) * payRatio);
+        
+        const fullGross = (compMap['BASIC'] || 0) + (compMap['HRA'] || 0) + (compMap['CONV'] || 0) + (compMap['PETROL'] || 0) + (compMap['MED'] || 0) + (compMap['SPL'] || 0);
+        const perDayGross = totalWorkingDays > 0 ? (fullGross / totalWorkingDays) : 0;
+        const extraDays = att?.overtime_hours || 0;
+
         const bonus = 0;
-        const overtime = 0;
+        const overtime = Math.round(extraDays * perDayGross);
         const arrears = 0;
         const reimbursements = 0;
         const grossEarnings = basic + hra + conv + petrol + med + spl + bonus + overtime + arrears + reimbursements;
@@ -167,7 +172,6 @@ export async function POST(request) {
         }
 
         // Calculate full month gross for ESI applicability
-        const fullGross = (compMap['BASIC'] || 0) + (compMap['HRA'] || 0) + (compMap['CONV'] || 0) + (compMap['PETROL'] || 0) + (compMap['MED'] || 0) + (compMap['SPL'] || 0);
         const fullEsicBase = Math.max(fullGross - (compMap['CONV'] || 0) - (compMap['PETROL'] || 0), 0);
         const isEsicApplicable = fullEsicBase <= 21000;
 

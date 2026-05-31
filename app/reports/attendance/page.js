@@ -48,7 +48,7 @@ export default function AttendanceReportPage() {
         <div className="stat-card stat-card--primary"><div><div className="stat-value">{records.length}</div><div className="stat-label">Employees</div></div></div>
         <div className="stat-card stat-card--success"><div><div className="stat-value">{totals.present}</div><div className="stat-label">Total Present Days</div></div></div>
         <div className="stat-card stat-card--danger"><div><div className="stat-value">{totals.absent}</div><div className="stat-label">Total Absent Days</div></div></div>
-        <div className="stat-card stat-card--warning"><div><div className="stat-value">{totals.ot}</div><div className="stat-label">Total OT Hours</div></div></div>
+        <div className="stat-card stat-card--warning"><div><div className="stat-value">{totals.ot}</div><div className="stat-label">Total Extra Days (ED)</div></div></div>
       </div>
 
       {loading ? (
@@ -63,7 +63,7 @@ export default function AttendanceReportPage() {
                 <th>Sl</th><th>Employee</th><th>Department</th>
                 <th>Working Days</th><th>Present</th><th>Absent</th>
                 <th>Paid Leave</th><th>Unpaid Leave</th><th>Half Days</th>
-                <th>OT Hours</th><th>Late Marks</th>
+                <th>Extra Days (ED)</th><th>Late Marks</th>
                 <th>CL</th><th>SL</th><th>EL</th><th>Attendance %</th>
               </tr>
             </thead>

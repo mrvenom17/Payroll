@@ -506,7 +506,7 @@ export default function EmployeeDetailPage({ params }) {
                       <th>Absent</th>
                       <th>Paid Leave</th>
                       <th>Unpaid Leave</th>
-                      <th>OT Hours</th>
+                      <th>Extra Days (ED)</th>
                       <th>CL / SL / EL</th>
                     </tr>
                   </thead>
