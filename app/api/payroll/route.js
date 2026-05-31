@@ -123,11 +123,27 @@ export async function POST(request) {
     );
     for (const d of declRows) declMap[d.employee_id] = d;
 
+    // Existing payroll rows for this period — used to skip APPROVED/PAID rows
+    // so re-running payroll doesn't silently roll back a payment.
+    const existingMap = {};
+    const [existing] = await pool.execute(
+      'SELECT employee_id, status FROM payroll WHERE month = ? AND year = ?',
+      [month, year]
+    );
+    for (const r of existing) existingMap[r.employee_id] = r.status;
+
+    let skippedLocked = 0;
+
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
 
       for (const emp of employees) {
+        if (existingMap[emp.id] && existingMap[emp.id] !== 'DRAFT') {
+          // Already approved/paid for this period — never recompute or downgrade.
+          skippedLocked++;
+          continue;
+        }
         const att = attendanceMap[emp.id];
         const daysInMonth = new Date(year, month, 0).getDate();
 
@@ -355,7 +371,11 @@ export async function POST(request) {
         [generateId(), companyId, 'PAYROLL_PROCESSED', 'payroll', `${month}-${year}`, JSON.stringify({ month, year, count: employees.length }), 'system']);
     } catch(e) { console.error('audit error:', e.message); }
 
-    return NextResponse.json({ success: true, processedCount: employees.length });
+    return NextResponse.json({
+      success: true,
+      processedCount: employees.length - skippedLocked,
+      skippedLockedCount: skippedLocked,
+    });
   } catch (error) {
     console.error('Payroll processing error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
