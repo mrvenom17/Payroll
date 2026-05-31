@@ -107,6 +107,7 @@ export async function POST(request) {
       for (const emp of employees) {
         const att = attendanceMap[emp.id];
         const totalWorkingDays = att?.total_working_days || 26;
+        const daysInMonth = new Date(year, month, 0).getDate();
         let paidDays = totalWorkingDays;
         
         if (att) {
@@ -121,7 +122,11 @@ export async function POST(request) {
           }
         }
         
-        const payRatio = totalWorkingDays > 0 ? paidDays / totalWorkingDays : 1;
+        // Calendar-day proration:
+        // Full month (present >= working days) → full salary (ratio = 1)
+        // Partial month → salary / daysInMonth × presentDays
+        const isFullMonth = paidDays >= totalWorkingDays;
+        const payRatio = isFullMonth ? 1 : (daysInMonth > 0 ? paidDays / daysInMonth : 1);
 
         // Get salary components
         const [components] = await conn.execute(`
@@ -144,7 +149,7 @@ export async function POST(request) {
         const spl = Math.round((compMap['SPL'] || 0) * payRatio);
         
         const fullGross = (compMap['BASIC'] || 0) + (compMap['HRA'] || 0) + (compMap['CONV'] || 0) + (compMap['PETROL'] || 0) + (compMap['MED'] || 0) + (compMap['SPL'] || 0);
-        const perDayGross = totalWorkingDays > 0 ? (fullGross / totalWorkingDays) : 0;
+        const perDayGross = daysInMonth > 0 ? (fullGross / daysInMonth) : 0;
         const extraDays = att?.overtime_hours || 0;
 
         const bonus = 0;

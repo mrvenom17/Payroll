@@ -227,19 +227,24 @@ export default function PayrollPage() {
       const oldTotal = Number(editingRecord.total_working_days) || 26;
       const newPaid = Number(updated.paid_days) || 0;
       const newTotal = Number(updated.total_working_days) || 26;
+      const daysInMonth = new Date(year, month, 0).getDate();
       
       if (oldPaid > 0 && oldTotal > 0 && newTotal > 0) {
         // Only trigger recalculation if the ratio actually changed
         if (newPaid !== oldPaid || newTotal !== oldTotal) {
+          // Calendar-day proration: full month = full amount, partial = amount × paid/daysInMonth
+          const isFullMonth = newPaid >= newTotal;
+          
           const recalc = (code, fallbackValue) => {
             const fullAmt = editingRecord.full_components?.[code];
             if (fullAmt !== undefined) {
-              return Math.round((fullAmt / newTotal) * newPaid);
+              return isFullMonth ? Math.round(fullAmt) : Math.round(fullAmt * newPaid / daysInMonth);
             }
             // Fallback to reverse calculation if full_components isn't available
             if (!fallbackValue) return 0;
-            const reversedFullAmt = (fallbackValue * oldTotal) / oldPaid;
-            return Math.round((reversedFullAmt / newTotal) * newPaid);
+            const origIsFullMonth = oldPaid >= oldTotal;
+            const reversedFullAmt = origIsFullMonth ? fallbackValue : Math.round(fallbackValue * daysInMonth / oldPaid);
+            return isFullMonth ? reversedFullAmt : Math.round(reversedFullAmt * newPaid / daysInMonth);
           };
           
           updated.basic_salary = recalc('BASIC', editingRecord.basic_salary);
@@ -249,6 +254,15 @@ export default function PayrollPage() {
           updated.medical = recalc('MED', editingRecord.medical);
           updated.special_allowance = recalc('SPL', editingRecord.special_allowance);
 
+          // Recalculate ED pay using calendar-day basis
+          const fullGrossAmt = (editingRecord.full_components?.['BASIC'] || 0) + (editingRecord.full_components?.['HRA'] || 0) + (editingRecord.full_components?.['CONV'] || 0) + (editingRecord.full_components?.['PETROL'] || 0) + (editingRecord.full_components?.['MED'] || 0) + (editingRecord.full_components?.['SPL'] || 0);
+          if (fullGrossAmt > 0) {
+            const perDay = fullGrossAmt / daysInMonth;
+            const edDays = Number(updated.overtime) || 0;
+            // Keep ED pay as the stored amount if no full_components, otherwise recalculate
+            // Actually, ED is the pay amount, not days - so keep it unless the user changes it
+          }
+
           updated.gross_earnings = updated.basic_salary + updated.hra + updated.conveyance + updated.petrol_allowance + updated.medical + updated.special_allowance + (Number(updated.overtime) || 0);
 
           // Re-calculate deductions
@@ -256,7 +270,8 @@ export default function PayrollPage() {
 
           // ESI base excludes Conveyance & Petrol Allowance
           const esicBase = Math.max(updated.gross_earnings - updated.conveyance - updated.petrol_allowance, 0);
-          const fullGross = (editingRecord.gross_earnings * oldTotal) / oldPaid;
+          const origIsFullMonth = oldPaid >= oldTotal;
+          const fullGross = origIsFullMonth ? editingRecord.gross_earnings : (editingRecord.gross_earnings * daysInMonth / oldPaid);
           if (fullGross <= 21000) {
             updated.esic_deduction = Math.round(esicBase * 0.0075);
           } else {
