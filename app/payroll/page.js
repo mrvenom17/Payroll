@@ -205,6 +205,7 @@ export default function PayrollPage() {
       petrol_allowance: record.petrol_allowance || 0,
       medical: record.medical || 0,
       special_allowance: record.special_allowance || 0,
+      overtime: record.overtime || 0,
       gross_earnings: record.gross_earnings || 0,
       pf_deduction: record.pf_deduction || 0,
       esic_deduction: record.esic_deduction || 0,
@@ -248,7 +249,7 @@ export default function PayrollPage() {
           updated.medical = recalc('MED', editingRecord.medical);
           updated.special_allowance = recalc('SPL', editingRecord.special_allowance);
 
-          updated.gross_earnings = updated.basic_salary + updated.hra + updated.conveyance + updated.petrol_allowance + updated.medical + updated.special_allowance;
+          updated.gross_earnings = updated.basic_salary + updated.hra + updated.conveyance + updated.petrol_allowance + updated.medical + updated.special_allowance + (Number(updated.overtime) || 0);
 
           // Re-calculate deductions
           updated.pf_deduction = Math.round(updated.basic_salary * 0.12);
@@ -377,6 +378,7 @@ export default function PayrollPage() {
                   <th style={{ textAlign: 'right' }}>Basic</th>
                   <th style={{ textAlign: 'right' }}>HRA</th>
                   <th style={{ textAlign: 'right' }}>Gross</th>
+                  <th style={{ textAlign: 'right' }}>ED Pay</th>
                   <th style={{ textAlign: 'right' }}>PF</th>
                   <th style={{ textAlign: 'right' }}>ESIC</th>
                   <th style={{ textAlign: 'right' }}>PT</th>
@@ -399,6 +401,7 @@ export default function PayrollPage() {
                     <td className="currency text-right">{fmt(r.basic_salary)}</td>
                     <td className="currency text-right">{fmt(r.hra)}</td>
                     <td className="currency text-right font-bold text-success">{fmt(r.gross_earnings)}</td>
+                    <td className="currency text-right" style={{ color: r.overtime > 0 ? 'var(--accent)' : 'inherit' }}>{fmt(r.overtime)}</td>
                     <td className="currency text-right text-danger">{fmt(r.pf_deduction)}</td>
                     <td className="currency text-right text-danger">{fmt(r.esic_deduction)}</td>
                     <td className="currency text-right text-danger">{fmt(r.pt_deduction)}</td>
@@ -435,6 +438,7 @@ export default function PayrollPage() {
                   <td className="currency text-right">{fmt(records.reduce((s, r) => s + r.basic_salary, 0))}</td>
                   <td className="currency text-right">{fmt(records.reduce((s, r) => s + r.hra, 0))}</td>
                   <td className="currency text-right text-success">{fmt(summary.totalGross)}</td>
+                  <td className="currency text-right">{fmt(records.reduce((s, r) => s + (r.overtime || 0), 0))}</td>
                   <td className="currency text-right text-danger">{fmt(summary.totalPF)}</td>
                   <td className="currency text-right text-danger">{fmt(summary.totalESIC)}</td>
                   <td className="currency text-right text-danger">{fmt(summary.totalPT)}</td>
@@ -600,6 +604,16 @@ export default function PayrollPage() {
                 <div className="form-group">
                   <label className="form-label">Gross Earnings</label>
                   <input type="number" className="form-input" value={editFormData.gross_earnings} onChange={e => setEditFormData({ ...editFormData, gross_earnings: e.target.value })} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Extra Days (ED) Pay <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>(added to Gross)</span></label>
+                  <input type="number" className="form-input" value={editFormData.overtime} onChange={e => {
+                    const edVal = Number(e.target.value) || 0;
+                    setEditFormData(prev => {
+                      const newGross = (Number(prev.basic_salary) || 0) + (Number(prev.hra) || 0) + (Number(prev.conveyance) || 0) + (Number(prev.petrol_allowance) || 0) + (Number(prev.medical) || 0) + (Number(prev.special_allowance) || 0) + edVal;
+                      return { ...prev, overtime: edVal, gross_earnings: newGross };
+                    });
+                  }} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">PF Deduction</label>

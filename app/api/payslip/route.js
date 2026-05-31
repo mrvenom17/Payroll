@@ -105,16 +105,16 @@ export async function GET(request) {
       })
       .filter(Boolean);
 
-    const earnings = allEarnings.filter(e => e.actual !== null);
-    
-    if (payrollRecord.overtime !== undefined && payrollRecord.overtime !== null && Number(payrollRecord.overtime) > 0) {
-      earnings.push({
-        name: 'Extra Days (ED) Pay',
-        code: 'ED_PAY',
-        column: 'overtime',
-        actual: Number(payrollRecord.overtime),
-      });
-    }
+    // Always include ED Pay in allEarnings so it's available in edit mode
+    const edPayAmount = payrollRecord.overtime !== undefined && payrollRecord.overtime !== null ? Number(payrollRecord.overtime) : 0;
+    allEarnings.push({
+      name: 'Extra Days (ED) Pay',
+      code: 'ED_PAY',
+      column: 'overtime',
+      actual: edPayAmount,
+    });
+
+    const earnings = allEarnings.filter(e => e.actual !== null && e.actual > 0);
 
     const totalEarnings = earnings.reduce((sum, e) => sum + e.actual, 0);
 

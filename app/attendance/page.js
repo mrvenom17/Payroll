@@ -41,9 +41,19 @@ export default function AttendancePage() {
         
         // Init editing state
         const editMap = {};
+        // Existing records: auto-fill sundays/holidays from calendar if they were 0 or missing
         (d.records || []).forEach(r => {
-          editMap[r.employee_id] = { ...r };
+          const recSundays = (r.sundays && r.sundays > 0) ? r.sundays : sundays;
+          const recHolidays = (globalHolidays > 0) ? globalHolidays : (r.holidays || 0);
+          const recWorkingDays = daysInMonth - recSundays - recHolidays;
+          editMap[r.employee_id] = { 
+            ...r, 
+            sundays: recSundays,
+            holidays: recHolidays,
+            total_working_days: Math.max(0, recWorkingDays),
+          };
         });
+        // New employees: full auto-calculation
         (d.withoutAttendance || []).forEach(e => {
           editMap[e.id] = {
             employee_id: e.id, month, year, full_name: e.full_name,

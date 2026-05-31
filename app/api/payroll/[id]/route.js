@@ -25,6 +25,7 @@ export async function PUT(request, { params }) {
       petrol_allowance,
       medical,
       special_allowance,
+      overtime,
       gross_earnings,
       employer_pf,
       employer_esic
@@ -53,6 +54,7 @@ export async function PUT(request, { params }) {
       petrol_allowance: safeNumber(petrol_allowance, record.petrol_allowance),
       medical: safeNumber(medical, record.medical),
       special_allowance: safeNumber(special_allowance, record.special_allowance),
+      overtime: safeNumber(overtime, record.overtime),
       pf_deduction: safeNumber(pf_deduction, record.pf_deduction),
       esic_deduction: safeNumber(esic_deduction, record.esic_deduction),
       pt_deduction: safeNumber(pt_deduction, record.pt_deduction),
@@ -71,7 +73,8 @@ export async function PUT(request, { params }) {
       (update.conveyance || 0) +
       (update.petrol_allowance || 0) +
       (update.medical || 0) +
-      (update.special_allowance || 0);
+      (update.special_allowance || 0) +
+      (update.overtime || 0);
     update.gross_earnings = grossEarnings;
 
     const total_deductions =
@@ -93,7 +96,7 @@ export async function PUT(request, { params }) {
       UPDATE payroll
       SET
         total_working_days = ?, paid_days = ?,
-        basic_salary = ?, hra = ?, conveyance = ?, petrol_allowance = ?, medical = ?, special_allowance = ?, gross_earnings = ?,
+        basic_salary = ?, hra = ?, conveyance = ?, petrol_allowance = ?, medical = ?, special_allowance = ?, overtime = ?, gross_earnings = ?,
         pf_deduction = ?, esic_deduction = ?, pt_deduction = ?, tds_deduction = ?,
         loan_deduction = ?, advance_deduction = ?, other_deductions = ?,
         employer_pf = ?, employer_esic = ?,
@@ -101,7 +104,7 @@ export async function PUT(request, { params }) {
       WHERE id = ?
     `, [
       update.total_working_days, update.paid_days,
-      update.basic_salary, update.hra, update.conveyance, update.petrol_allowance, update.medical, update.special_allowance, update.gross_earnings,
+      update.basic_salary, update.hra, update.conveyance, update.petrol_allowance, update.medical, update.special_allowance, update.overtime, update.gross_earnings,
       update.pf_deduction, update.esic_deduction, update.pt_deduction, update.tds_deduction,
       update.loan_deduction, update.advance_deduction, update.other_deductions,
       update.employer_pf, update.employer_esic,

@@ -281,13 +281,16 @@ function PayslipContent() {
             </div>
 
             {/* Attendance */}
-            <div style={{ padding: '16px 32px', borderBottom: '1px solid var(--border-light)', display: 'flex', gap: 32, fontSize: 13 }}>
+            <div style={{ padding: '16px 32px', borderBottom: '1px solid var(--border-light)', display: 'flex', gap: 32, fontSize: 13, flexWrap: 'wrap' }}>
               <div><span style={{ color: 'var(--text-tertiary)' }}>Working Days: </span><strong>{payslip.attendance.workingDays}</strong></div>
               <div><span style={{ color: 'var(--text-tertiary)' }}>Days Present: </span><strong>{payslip.attendance.presentDays}</strong></div>
               <div><span style={{ color: 'var(--text-tertiary)' }}>LWP (Leave without pay): </span><strong style={{ color: payslip.attendance.lwp > 0 ? 'var(--danger)' : 'inherit' }}>{payslip.attendance.lwp}</strong></div>
               <div><span style={{ color: 'var(--text-tertiary)' }}>Half Days: </span><strong>{payslip.attendance.halfDays}</strong></div>
-              <div><span style={{ color: 'var(--text-tertiary)' }}>Holidays: </span><strong>{payslip.attendance.holidays}</strong></div>
               <div><span style={{ color: 'var(--text-tertiary)' }}>Sundays: </span><strong>{payslip.attendance.sundays}</strong></div>
+              <div><span style={{ color: 'var(--text-tertiary)' }}>Holidays: </span><strong>{payslip.attendance.holidays}</strong></div>
+              {payslip.attendance.overtime > 0 && (
+                <div><span style={{ color: 'var(--text-tertiary)' }}>Extra Days (ED): </span><strong style={{ color: 'var(--accent)' }}>{payslip.attendance.overtime}</strong></div>
+              )}
             </div>
 
             {/* Earnings & Deductions */}

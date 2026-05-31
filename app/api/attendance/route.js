@@ -50,8 +50,8 @@ export async function POST(request) {
 
         for (const entry of body.entries) {
           await conn.execute(`
-            INSERT INTO attendance (id, employee_id, month, year, total_working_days, present_days, absent_days, paid_leaves, unpaid_leaves, overtime_hours, late_marks, half_days, cl_balance, sl_balance, el_balance)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO attendance (id, employee_id, month, year, total_working_days, present_days, absent_days, paid_leaves, unpaid_leaves, overtime_hours, late_marks, half_days, sundays, holidays, cl_balance, sl_balance, el_balance)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON DUPLICATE KEY UPDATE
               total_working_days = VALUES(total_working_days),
               present_days = VALUES(present_days),
@@ -61,6 +61,8 @@ export async function POST(request) {
               overtime_hours = VALUES(overtime_hours),
               late_marks = VALUES(late_marks),
               half_days = VALUES(half_days),
+              sundays = VALUES(sundays),
+              holidays = VALUES(holidays),
               cl_balance = VALUES(cl_balance),
               sl_balance = VALUES(sl_balance),
               el_balance = VALUES(el_balance),
@@ -71,6 +73,7 @@ export async function POST(request) {
             entry.absent_days || 0, entry.paid_leaves || 0,
             entry.unpaid_leaves || 0, entry.overtime_hours || 0,
             entry.late_marks || 0, entry.half_days || 0,
+            entry.sundays || 0, entry.holidays || 0,
             entry.cl_balance || 0, entry.sl_balance || 0, entry.el_balance || 0
           ]);
         }
