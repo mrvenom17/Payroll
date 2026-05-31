@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getPool, generateId } from '@/lib/db';
+import { calculateGratuity } from '@/lib/compliance/gratuity';
 
 export async function GET(request) {
   try {
@@ -73,15 +74,11 @@ export async function POST(request) {
 
     const basicMonthly = components.find(c => c.code === 'BASIC')?.monthly_amount || 0;
 
-    // Calculate gratuity
+    // Calculate gratuity via shared helper (5y eligibility, 15×LDS/26, ₹25L tax-free cap)
     let gratuity = 0;
     if (emp.joining_date && body.last_working_date) {
-      const joining = new Date(emp.joining_date);
-      const exit = new Date(body.last_working_date);
-      const years = (exit - joining) / (1000 * 60 * 60 * 24 * 365.25);
-      if (years >= 5) {
-        gratuity = Math.round((basicMonthly * 15 * Math.round(years)) / 26);
-      }
+      const g = calculateGratuity(basicMonthly, null, emp.joining_date, body.last_working_date);
+      if (g.eligible) gratuity = g.amount;
     }
 
     // Calculate leave encashment (EL balance × daily rate)

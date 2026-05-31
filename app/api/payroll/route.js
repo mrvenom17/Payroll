@@ -3,6 +3,7 @@ import { getPool, generateId } from '@/lib/db';
 import { calculatePF } from '@/lib/compliance/pf';
 import { calculateESIC } from '@/lib/compliance/esic';
 import { calculatePT } from '@/lib/compliance/pt-mp';
+import { calculateLWF } from '@/lib/compliance/lwf-mp';
 import { calculateTDS } from '@/lib/compliance/tds';
 
 export async function GET(request) {
@@ -100,33 +101,73 @@ export async function POST(request) {
       loansMap[l.employee_id].push(l);
     });
 
+    // Investment declarations for the FY containing this month (April-cutoff, India FY).
+    // Used by the old-regime TDS calculation; new regime ignores them.
+    const fyStart = month >= 4 ? year : year - 1;
+    const fyLabel = `${fyStart}-${fyStart + 1}`;
+    const investmentsBySection = {};
+    const [invRows] = await pool.execute(
+      'SELECT employee_id, section, verified_amount, declared_amount FROM investments WHERE financial_year = ?',
+      [fyLabel]
+    );
+    for (const r of invRows) {
+      const emp = (investmentsBySection[r.employee_id] ||= {});
+      const sec = String(r.section || '').toUpperCase();
+      const amt = Number(r.verified_amount) || Number(r.declared_amount) || 0;
+      emp[sec] = (emp[sec] || 0) + amt;
+    }
+    const declMap = {};
+    const [declRows] = await pool.execute(
+      'SELECT * FROM investment_declarations WHERE financial_year = ?',
+      [fyLabel]
+    );
+    for (const d of declRows) declMap[d.employee_id] = d;
+
     const conn = await pool.getConnection();
     try {
       await conn.beginTransaction();
 
       for (const emp of employees) {
         const att = attendanceMap[emp.id];
-        const totalWorkingDays = att?.total_working_days || 26;
         const daysInMonth = new Date(year, month, 0).getDate();
-        let paidDays = totalWorkingDays;
-        
-        if (att) {
-          if (att.present_days !== undefined && att.present_days !== null && att.present_days > 0) {
-            paidDays = att.present_days;
-          } else {
-            const unpaidLeaves = att.unpaid_leaves || 0;
-            const absentDays = att.absent_days || 0;
-            const halfDays = att.half_days || 0;
-            const lossOfPay = unpaidLeaves + absentDays + (halfDays * 0.5);
-            paidDays = Math.max(totalWorkingDays - lossOfPay, 0);
+
+        // Per-employee calendar window. If the employee joined mid-month, only the
+        // days from their joining_date onwards count. Sundays inside that window are
+        // paid. The window is also the fallback when no attendance row exists yet.
+        const monthStart = new Date(year, month - 1, 1);
+        const monthEnd = new Date(year, month, 0);
+        let windowStart = monthStart;
+        if (emp.joining_date) {
+          const j = new Date(emp.joining_date);
+          if (!isNaN(j.getTime()) && j > monthStart) windowStart = j;
+        }
+        let windowDays = 0;
+        let windowSundays = 0;
+        if (windowStart <= monthEnd) {
+          for (let d = new Date(windowStart); d <= monthEnd; d.setDate(d.getDate() + 1)) {
+            windowDays++;
+            if (d.getDay() === 0) windowSundays++;
           }
         }
-        
-        // Calendar-day proration:
-        // Full month (present >= working days) → full salary (ratio = 1)
-        // Partial month → salary / daysInMonth × presentDays
-        const isFullMonth = paidDays >= totalWorkingDays;
-        const payRatio = isFullMonth ? 1 : (daysInMonth > 0 ? paidDays / daysInMonth : 1);
+        const windowWorkingDays = Math.max(windowDays - windowSundays, 0);
+
+        const totalWorkingDays = att?.total_working_days ?? windowWorkingDays;
+        const sundays = Number(att?.sundays ?? windowSundays) || 0;
+        const holidays = Number(att?.holidays) || 0;
+        const paidLeaves = Number(att?.paid_leaves) || 0;
+        const halfDays = Number(att?.half_days) || 0;
+        const presentDays = att && att.present_days !== undefined && att.present_days !== null
+          ? Number(att.present_days)
+          : totalWorkingDays;
+
+        // Paid days = days the employer pays for. Sundays + declared holidays + approved
+        // paid leaves are paid even though no work was done. Half days lose half pay.
+        // Unpaid leaves / absences are already excluded because they reduce present_days.
+        const paidDays = Math.max(presentDays + sundays + holidays + paidLeaves - (halfDays * 0.5), 0);
+
+        // Calendar-day proration: full month → ratio 1; partial month (LOP or late joiner)
+        // → paid_days / calendar_days_in_month. Capped at 1 to guard against bad data.
+        const payRatio = daysInMonth > 0 ? Math.min(paidDays / daysInMonth, 1) : 1;
 
         // Get salary components
         const [components] = await conn.execute(`
@@ -149,11 +190,11 @@ export async function POST(request) {
         const spl = Math.round((compMap['SPL'] || 0) * payRatio);
         
         const fullGross = (compMap['BASIC'] || 0) + (compMap['HRA'] || 0) + (compMap['CONV'] || 0) + (compMap['PETROL'] || 0) + (compMap['MED'] || 0) + (compMap['SPL'] || 0);
-        const perDayGross = daysInMonth > 0 ? (fullGross / daysInMonth) : 0;
-        const extraDays = att?.overtime_hours || 0;
 
+        // Extra Days (ED) pay was removed — Sundays inside the working window are paid
+        // via the proration ratio above instead of being treated as overtime/extra-day pay.
         const bonus = 0;
-        const overtime = Math.round(extraDays * perDayGross);
+        const overtime = 0;
         const arrears = 0;
         const reimbursements = 0;
         const grossEarnings = basic + hra + conv + petrol + med + spl + bonus + overtime + arrears + reimbursements;
@@ -196,15 +237,58 @@ export async function POST(request) {
           employerEsic = esicResult.employerContribution;
         }
 
-        const ptResult = calculatePT(emp.ctc_annual || 0, month);
-        const ptDeduction = ptResult.monthlyAmount || 0;
+        // PT — slab tables are state-specific. Only MP is implemented today, so route MP
+        // (and unset / unknown states) through calculatePT and skip others with PT = 0 so we
+        // never silently mis-deduct PT for a non-MP employee.
+        const ptState = (emp.pt_state || 'MP').toUpperCase();
+        const ptResult = ptState === 'MP' ? calculatePT(emp.ctc_annual || 0, month) : null;
+        const ptDeduction = ptResult ? (ptResult.monthlyAmount || 0) : 0;
+
+        // LWF (MP) — half-yearly deduction in June & December. Other states' LWF rules differ;
+        // fold into other_deductions so the schema doesn't need a new column.
+        let lwfEmployee = 0;
+        let lwfEmployer = 0;
+        if (emp.lwf_applicable && ptState === 'MP') {
+          const designation = String(emp.designation || '').toLowerCase();
+          const isManagerial = designation.includes('manager') || designation.includes('supervisor') || designation.includes('director') || designation.includes('head');
+          const lwfRes = calculateLWF(emp.ctc_monthly || 0, isManagerial, month);
+          if (lwfRes.applicable) {
+            lwfEmployee = lwfRes.employeeContribution || 0;
+            lwfEmployer = lwfRes.employerContribution || 0;
+          }
+        }
 
         // TDS
         let tdsDeduction = 0;
         if (emp.tds_applicable) {
+          const regime = emp.tax_regime || 'NEW';
+          const sec = investmentsBySection[emp.id] || {};
+          const decl = declMap[emp.id] || {};
+
+          // HRA exemption (old regime only): min(actual HRA, rent - 10% basic, 50%/40% of basic)
+          let hraExemption = 0;
+          if (regime === 'OLD') {
+            const annualBasic = (compMap['BASIC'] || 0) * 12;
+            const annualHra = (compMap['HRA'] || 0) * 12;
+            const annualRent = (Number(decl.rent_paid) || 0) * 12;
+            const metroPct = decl.is_metro_city ? 0.5 : 0.4;
+            if (annualRent > 0 && annualBasic > 0) {
+              hraExemption = Math.max(0, Math.min(
+                annualHra,
+                annualRent - 0.1 * annualBasic,
+                metroPct * annualBasic
+              ));
+            }
+          }
+
           const tdsResult = calculateTDS({
             grossAnnualSalary: emp.ctc_annual || 0,
-            regime: emp.tax_regime || 'NEW',
+            regime,
+            section80c: (sec['80C'] || 0) + (Number(decl.section_80c) || 0),
+            section80d: (sec['80D'] || 0) + (Number(decl.section_80d) || 0),
+            hraExemption,
+            otherDeductions: Number(decl.other_deductions) || 0,
+            otherIncome: Number(decl.other_income) || 0,
             previousEmployerIncome: emp.previous_employer_income || 0,
             previousEmployerTds: emp.previous_employer_tds || 0,
           });
@@ -221,7 +305,10 @@ export async function POST(request) {
           }
         }
 
-        const totalDeductions = pfDeduction + esicDeduction + ptDeduction + tdsDeduction + loanDeduction;
+        // LWF rolls into other_deductions for storage (no schema change).
+        const otherDeductions = lwfEmployee;
+
+        const totalDeductions = pfDeduction + esicDeduction + ptDeduction + tdsDeduction + loanDeduction + otherDeductions;
         // CTC-inclusive: employer PF/ESIC are baked into gross, so subtract them from net.
         const netSalary = Math.max(grossEarnings - totalDeductions - employerPf - employerEsic, 0);
 
@@ -249,7 +336,7 @@ export async function POST(request) {
         `, [
           payrollId, emp.id, month, year, totalWorkingDays, paidDays,
           basic, hra, conv, petrol, med, spl, bonus, overtime, arrears, reimbursements, grossEarnings,
-          pfDeduction, esicDeduction, ptDeduction, tdsDeduction, loanDeduction, 0, 0, totalDeductions,
+          pfDeduction, esicDeduction, ptDeduction, tdsDeduction, loanDeduction, 0, otherDeductions, totalDeductions,
           netSalary, employerPf, employerEsic, 'DRAFT'
         ]);
       }

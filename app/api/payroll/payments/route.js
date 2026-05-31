@@ -89,6 +89,38 @@ export async function POST(request) {
           WHERE id = ?
         `, [mode, p.utr_number || p.cheque_number || null, payroll_id]);
 
+        // Amortize active loans by the EMI amount actually deducted on this payslip.
+        // Without this step loans never close out — the same EMI gets deducted forever.
+        const loanDeducted = Number(row.loan_deduction) || 0;
+        if (loanDeducted > 0) {
+          const [activeLoans] = await conn.execute(
+            `SELECT id, emi_amount, balance_outstanding, paid_emis, total_emis
+               FROM loans
+              WHERE employee_id = ? AND status = 'ACTIVE'
+              ORDER BY start_date ASC, created_at ASC`,
+            [row.employee_id]
+          );
+          let remaining = loanDeducted;
+          for (const ln of activeLoans) {
+            if (remaining <= 0) break;
+            const apply = Math.min(remaining, Number(ln.balance_outstanding) || 0);
+            if (apply <= 0) continue;
+            const newBal = Math.max(Number(ln.balance_outstanding) - apply, 0);
+            const newPaid = (Number(ln.paid_emis) || 0) + 1;
+            const closed = newBal <= 0.5; // rupee rounding tolerance
+            await conn.execute(
+              `UPDATE loans
+                  SET balance_outstanding = ?,
+                      paid_emis = ?,
+                      status = ${closed ? "'CLOSED'" : "status"},
+                      end_date = ${closed ? "CURDATE()" : "end_date"}
+                WHERE id = ?`,
+              [closed ? 0 : newBal, newPaid, ln.id]
+            );
+            remaining -= apply;
+          }
+        }
+
         if (mode === 'CHEQUE' && p.cheque_number) {
           const n = parseInt(p.cheque_number, 10);
           if (!isNaN(n)) bumpCheque = String(n + 1).padStart(p.cheque_number.length, '0');

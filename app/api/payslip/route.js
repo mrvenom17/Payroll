@@ -65,24 +65,27 @@ export async function GET(request) {
     const advanceBalance = Number(loans[0]?.total_outstanding) || 0;
 
     // Build payslip using payroll record values (already correctly calculated)
-    const workingDays = payrollRecord.total_working_days !== undefined && payrollRecord.total_working_days !== null 
-      ? payrollRecord.total_working_days 
+    const workingDays = payrollRecord.total_working_days !== undefined && payrollRecord.total_working_days !== null
+      ? payrollRecord.total_working_days
       : (attendance?.total_working_days || 22);
 
-    // Compute paid days using the same safe formula as payroll processing
-    const unpaidLeaves = attendance?.unpaid_leaves || 0;
-    const absentDays = attendance?.absent_days || 0;
-    const halfDays = attendance?.half_days || 0;
-    let lossOfPay = unpaidLeaves + absentDays + (halfDays * 0.5);
-    
-    let presentDays = 0;
-    if (payrollRecord.paid_days !== undefined && payrollRecord.paid_days !== null) {
-      presentDays = payrollRecord.paid_days;
-      // Recalculate loss of pay based on the payroll record explicitly
-      lossOfPay = Math.max(workingDays - presentDays, 0);
-    } else {
-      presentDays = Math.max(workingDays - lossOfPay, 0);
-    }
+    const sundays = Number(attendance?.sundays) || 0;
+    const holidays = Number(attendance?.holidays) || 0;
+    const paidLeaves = Number(attendance?.paid_leaves) || 0;
+    const unpaidLeaves = Number(attendance?.unpaid_leaves) || 0;
+    const absentDays = Number(attendance?.absent_days) || 0;
+    const halfDays = Number(attendance?.half_days) || 0;
+
+    // Present days (worked weekdays). Sundays / holidays / paid leaves are paid separately.
+    const presentDays = attendance && attendance.present_days !== undefined && attendance.present_days !== null
+      ? Number(attendance.present_days)
+      : Math.max(workingDays - unpaidLeaves - absentDays - (halfDays * 0.5), 0);
+
+    const paidDays = payrollRecord.paid_days !== undefined && payrollRecord.paid_days !== null
+      ? Number(payrollRecord.paid_days)
+      : Math.max(presentDays + sundays + holidays + paidLeaves - (halfDays * 0.5), 0);
+
+    const lossOfPay = Math.max(workingDays + sundays + holidays - paidDays, 0);
 
     // Snapshot-only: build earnings strictly from stored payroll-record columns.
     // If the column is null, the component was not part of payroll when it was processed
@@ -113,15 +116,7 @@ export async function GET(request) {
       })
       .filter(Boolean);
 
-    // Always include ED Pay in allEarnings so it's available in edit mode
-    const edPayAmount = payrollRecord.overtime !== undefined && payrollRecord.overtime !== null ? Number(payrollRecord.overtime) : 0;
-    allEarnings.push({
-      name: 'Extra Days (ED) Pay',
-      code: 'ED_PAY',
-      column: 'overtime',
-      actual: edPayAmount,
-    });
-
+    // Extra Days (ED) pay has been removed — Sundays are part of the paid window now.
     const earnings = allEarnings.filter(e => e.actual !== null && e.actual > 0);
 
     const totalEarnings = earnings.reduce((sum, e) => sum + e.actual, 0);
@@ -167,7 +162,6 @@ export async function GET(request) {
       petrol_allowance: payrollRecord.petrol_allowance ?? null,
       medical: payrollRecord.medical ?? null,
       special_allowance: payrollRecord.special_allowance ?? null,
-      overtime: payrollRecord.overtime ?? null,
       pf_deduction: pfDeduction,
       esic_deduction: esicDeduction,
       pt_deduction: ptData,
@@ -213,12 +207,13 @@ export async function GET(request) {
         attendance: {
           workingDays,
           presentDays,
+          paidDays,
           lop: lossOfPay,
-          lwp: lossOfPay, // Making this consistent with actual loss of pay
-          halfDays: attendance?.half_days || 0,
-          holidays: attendance?.holidays || 0,
-          sundays: attendance?.sundays || 0,
-          overtime: attendance?.overtime_hours || 0,
+          lwp: lossOfPay,
+          halfDays,
+          holidays,
+          sundays,
+          paidLeaves,
         },
         earnings,
         allEarnings,

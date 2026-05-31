@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getPool, generateId } from '@/lib/db';
+import { calculateGratuity } from '@/lib/compliance/gratuity';
 
 export async function GET(request, { params }) {
   try {
@@ -151,15 +152,15 @@ export async function PUT(request, { params }) {
 
           let gratuity = 0;
           if (updated.joining_date) {
-            const years = (new Date(updated.exit_date) - new Date(updated.joining_date)) / (1000 * 60 * 60 * 24 * 365.25);
-            if (years >= 5) {
-              gratuity = Math.round((basic * 15 * Math.round(years)) / 26);
-            }
+            const g = calculateGratuity(basic, null, updated.joining_date, updated.exit_date);
+            if (g.eligible) gratuity = g.amount;
           }
 
           const [[elRow]] = await pool.execute('SELECT el_balance FROM attendance WHERE employee_id = ? ORDER BY year DESC, month DESC LIMIT 1', [id]);
           const elBalance = elRow?.el_balance || 0;
-          const leaveEncashment = Math.round(elBalance * Math.round((ss?.ctc_monthly || 0) / 26));
+          // Daily rate for leave encashment uses BASIC (matches manual FNF and the Payment of
+          // Gratuity Act convention). Using CTC inflates encashment for every employee.
+          const leaveEncashment = Math.round(elBalance * Math.round((basic || 0) / 26));
 
           const [[loanRow]] = await pool.execute("SELECT SUM(balance_outstanding) as total FROM loans WHERE employee_id = ? AND status = 'ACTIVE'", [id]);
           const pendingLoans = loanRow?.total || 0;

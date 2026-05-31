@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
 import bcrypt from 'bcryptjs';
+import { createSessionToken } from '@/lib/auth';
 
 export async function POST(request) {
   try {
@@ -31,9 +32,8 @@ export async function POST(request) {
       user: { name: user.full_name, email: user.email, role: user.role },
     });
 
-    // Set an HTTP-only cookie with a session token
-    // (For production, use a signed JWT. For now, encode the user id.)
-    const token = Buffer.from(JSON.stringify({ uid: user.id, email: user.email, role: user.role })).toString('base64');
+    // HMAC-signed token — the previous plain-base64 form was trivially forgeable.
+    const token = createSessionToken({ uid: user.id, email: user.email, role: user.role });
 
     response.cookies.set('auth_session', token, {
       httpOnly: true,

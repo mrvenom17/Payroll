@@ -11,7 +11,7 @@ export async function GET(request) {
 
     const [records] = await pool.execute(`
       SELECT a.*, e.full_name, e.employee_code, e.designation, e.department_id,
-             d.name as department_name
+             e.joining_date, d.name as department_name
       FROM attendance a
       JOIN employees e ON a.employee_id = e.id
       LEFT JOIN departments d ON e.department_id = d.id
@@ -21,7 +21,8 @@ export async function GET(request) {
 
     // Get employees without attendance for this month
     const [allActive] = await pool.execute(`
-      SELECT e.id, e.full_name, e.employee_code, e.designation, d.name as department_name
+      SELECT e.id, e.full_name, e.employee_code, e.designation, e.joining_date,
+             d.name as department_name
       FROM employees e
       LEFT JOIN departments d ON e.department_id = d.id
       WHERE e.company_id = ? AND e.is_active = 1
