@@ -154,7 +154,10 @@ export async function POST(request) {
         const monthEnd = new Date(year, month, 0);
         let windowStart = monthStart;
         if (emp.joining_date) {
-          const j = new Date(emp.joining_date);
+          // Parse as local time — new Date("YYYY-MM-DD") is UTC which mismatches
+          // the local-time monthEnd, causing the last day to be skipped.
+          const parts = String(emp.joining_date).slice(0, 10).split('-');
+          const j = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
           if (!isNaN(j.getTime()) && j > monthStart) windowStart = j;
         }
         let windowDays = 0;
