@@ -172,13 +172,20 @@ export async function POST(request) {
         const holidays = Number(att?.holidays) || 0;
         const paidLeaves = Number(att?.paid_leaves) || 0;
         const halfDays = Number(att?.half_days) || 0;
-        const presentDays = att && att.present_days !== undefined && att.present_days !== null
+        const absentDays = Number(att?.absent_days) || 0;
+        const unpaidLeaves = Number(att?.unpaid_leaves) || 0;
+
+        // Present days = actual weekdays worked. Cap at (workingDays - absences)
+        // so that absent_days and unpaid_leaves always reduce pay even if
+        // present_days was not manually adjusted in the UI.
+        const rawPresent = att && att.present_days !== undefined && att.present_days !== null
           ? Number(att.present_days)
           : totalWorkingDays;
+        const maxPresent = Math.max(totalWorkingDays - absentDays - unpaidLeaves, 0);
+        const presentDays = Math.min(rawPresent, maxPresent);
 
         // Paid days = days the employer pays for. Sundays + declared holidays + approved
         // paid leaves are paid even though no work was done. Half days lose half pay.
-        // Unpaid leaves / absences are already excluded because they reduce present_days.
         const paidDays = Math.max(presentDays + sundays + holidays + paidLeaves - (halfDays * 0.5), 0);
 
         // Calendar-day proration: full month → ratio 1; partial month (LOP or late joiner)

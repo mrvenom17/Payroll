@@ -75,11 +75,17 @@ export default function AttendancePage() {
         // stay correct after a month change. Preserve user-entered attendance numbers.
         recs.forEach(r => {
           const cal = getEmployeeMonthDetails(month, year, r.joining_date, globalHolidays);
+          const wd = cal.workingDays;
+          const absDays = Number(r.absent_days) || 0;
+          const upLeaves = Number(r.unpaid_leaves) || 0;
+          const maxPresent = Math.max(wd - absDays - upLeaves, 0);
+          const correctedPresent = Math.min(Number(r.present_days) || wd, maxPresent);
           editMap[r.employee_id] = {
             ...r,
             sundays: cal.sundays,
             holidays: globalHolidays,
-            total_working_days: cal.workingDays,
+            total_working_days: wd,
+            present_days: correctedPresent,
             joinedMidMonth: cal.joinedMidMonth,
             activeDays: cal.activeDays,
           };
@@ -115,10 +121,24 @@ export default function AttendancePage() {
   useEffect(fetchData, [month, year, globalHolidays]);
 
   const updateField = (empId, field, value) => {
-    setEditing(prev => ({
-      ...prev,
-      [empId]: { ...prev[empId], [field]: parseFloat(value) || 0 }
-    }));
+    setEditing(prev => {
+      const emp = { ...prev[empId], [field]: parseFloat(value) || 0 };
+      const wd = emp.total_working_days || 0;
+
+      // Auto-adjust present ↔ absent so they always sum to working days.
+      if (field === 'absent_days' || field === 'unpaid_leaves') {
+        const totalAbsence = (emp.absent_days || 0) + (emp.unpaid_leaves || 0);
+        emp.present_days = Math.max(wd - totalAbsence, 0);
+      } else if (field === 'present_days') {
+        emp.absent_days = Math.max(wd - emp.present_days - (emp.unpaid_leaves || 0), 0);
+      } else if (field === 'total_working_days') {
+        // Working days changed — keep absent stable, adjust present.
+        const totalAbsence = (emp.absent_days || 0) + (emp.unpaid_leaves || 0);
+        emp.present_days = Math.max(emp.total_working_days - totalAbsence, 0);
+      }
+
+      return { ...prev, [empId]: emp };
+    });
   };
 
   const saveAll = async () => {

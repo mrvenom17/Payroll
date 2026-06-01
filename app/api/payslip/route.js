@@ -76,16 +76,20 @@ export async function GET(request) {
     const absentDays = Number(attendance?.absent_days) || 0;
     const halfDays = Number(attendance?.half_days) || 0;
 
-    // Present days (worked weekdays). Sundays / holidays / paid leaves are paid separately.
-    const presentDays = attendance && attendance.present_days !== undefined && attendance.present_days !== null
+    // Present days (worked weekdays). Cap at (workingDays - absences) so that
+    // absent_days and unpaid_leaves always reduce the displayed count.
+    const rawPresent = attendance && attendance.present_days !== undefined && attendance.present_days !== null
       ? Number(attendance.present_days)
-      : Math.max(workingDays - unpaidLeaves - absentDays - (halfDays * 0.5), 0);
+      : workingDays;
+    const maxPresent = Math.max(workingDays - absentDays - unpaidLeaves, 0);
+    const presentDays = Math.min(rawPresent, maxPresent);
 
     const paidDays = payrollRecord.paid_days !== undefined && payrollRecord.paid_days !== null
       ? Number(payrollRecord.paid_days)
       : Math.max(presentDays + sundays + holidays + paidLeaves - (halfDays * 0.5), 0);
 
-    const lossOfPay = Math.max(workingDays + sundays + holidays - paidDays, 0);
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const lossOfPay = Math.max(daysInMonth - paidDays, 0);
 
     // Snapshot-only: build earnings strictly from stored payroll-record columns.
     // If the column is null, the component was not part of payroll when it was processed
