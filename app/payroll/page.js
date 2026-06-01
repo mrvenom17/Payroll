@@ -606,6 +606,10 @@ export default function PayrollPage() {
                   <input type="number" className="form-input" value={editFormData.petrol_allowance} onChange={e => setEditFormData({ ...editFormData, petrol_allowance: e.target.value })} />
                 </div>
                 <div className="form-group">
+                  <label className="form-label">Extra Days (ED) Pay</label>
+                  <input type="number" className="form-input" value={editFormData.overtime} onChange={e => setEditFormData({ ...editFormData, overtime: e.target.value })} />
+                </div>
+                <div className="form-group">
                   <label className="form-label">Gross Earnings</label>
                   <input type="number" className="form-input" value={editFormData.gross_earnings} onChange={e => setEditFormData({ ...editFormData, gross_earnings: e.target.value })} />
                 </div>

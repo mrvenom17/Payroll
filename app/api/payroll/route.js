@@ -207,10 +207,12 @@ export async function POST(request) {
         
         const fullGross = (compMap['BASIC'] || 0) + (compMap['HRA'] || 0) + (compMap['CONV'] || 0) + (compMap['PETROL'] || 0) + (compMap['MED'] || 0) + (compMap['SPL'] || 0);
 
-        // Extra Days (ED) pay was removed — Sundays inside the working window are paid
-        // via the proration ratio above instead of being treated as overtime/extra-day pay.
+        // Extra Days (ED) pay — computed based on per-day gross.
+        // A full month's gross is divided by daysInMonth (31) to get the per-day rate.
+        const perDayGross = daysInMonth > 0 ? (fullGross / daysInMonth) : 0;
+        const extraDays = att?.overtime_hours || 0;
         const bonus = 0;
-        const overtime = 0;
+        const overtime = Math.round(extraDays * perDayGross);
         const arrears = 0;
         const reimbursements = 0;
         const grossEarnings = basic + hra + conv + petrol + med + spl + bonus + overtime + arrears + reimbursements;

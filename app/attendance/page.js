@@ -99,6 +99,7 @@ export default function AttendancePage() {
             unpaid_leaves: 0,
             late_marks: 0,
             half_days: 0,
+            overtime_hours: 0,
             cl_balance: 6, sl_balance: 4, el_balance: 12,
             sundays: cal.sundays,
             holidays: globalHolidays,
@@ -128,8 +129,7 @@ export default function AttendancePage() {
       total_working_days: e.total_working_days,
       present_days: e.present_days, absent_days: e.absent_days,
       paid_leaves: e.paid_leaves, unpaid_leaves: e.unpaid_leaves,
-      // Extra Days removed from the UI — always send 0 to keep the column stable.
-      overtime_hours: 0,
+      overtime_hours: e.overtime_hours || 0,
       late_marks: e.late_marks,
       half_days: e.half_days, cl_balance: e.cl_balance,
       sl_balance: e.sl_balance, el_balance: e.el_balance,
@@ -214,6 +214,7 @@ export default function AttendancePage() {
                   <th>Paid Leave</th>
                   <th>Unpaid Leave</th>
                   <th>Half Days</th>
+                  <th>Extra Days</th>
                   <th>Late Marks</th>
                 </tr>
               </thead>
@@ -232,7 +233,7 @@ export default function AttendancePage() {
                           </div>
                         )}
                       </td>
-                      {['total_working_days','sundays','holidays','present_days','absent_days','paid_leaves','unpaid_leaves','half_days','late_marks'].map(field => (
+                      {['total_working_days','sundays','holidays','present_days','absent_days','paid_leaves','unpaid_leaves','half_days','overtime_hours','late_marks'].map(field => (
                         <td key={field}>
                           <input
                             type="number"

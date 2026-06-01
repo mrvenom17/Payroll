@@ -116,7 +116,15 @@ export async function GET(request) {
       })
       .filter(Boolean);
 
-    // Extra Days (ED) pay has been removed — Sundays are part of the paid window now.
+    // Always include ED Pay in allEarnings so it's available in edit mode
+    const edPayAmount = payrollRecord.overtime !== undefined && payrollRecord.overtime !== null ? Number(payrollRecord.overtime) : 0;
+    allEarnings.push({
+      name: 'Extra Days (ED) Pay',
+      code: 'ED_PAY',
+      column: 'overtime',
+      actual: edPayAmount,
+    });
+
     const earnings = allEarnings.filter(e => e.actual !== null && e.actual > 0);
 
     const totalEarnings = earnings.reduce((sum, e) => sum + e.actual, 0);
@@ -162,6 +170,7 @@ export async function GET(request) {
       petrol_allowance: payrollRecord.petrol_allowance ?? null,
       medical: payrollRecord.medical ?? null,
       special_allowance: payrollRecord.special_allowance ?? null,
+      overtime: payrollRecord.overtime ?? null,
       pf_deduction: pfDeduction,
       esic_deduction: esicDeduction,
       pt_deduction: ptData,
@@ -213,6 +222,7 @@ export async function GET(request) {
           halfDays,
           holidays,
           sundays,
+          overtime: attendance?.overtime_hours || 0,
           paidLeaves,
         },
         earnings,
