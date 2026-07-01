@@ -399,8 +399,20 @@ function PayslipContent() {
               <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--primary)' }}>{formatINR(liveNetPayable)}</div>
             </div>
 
+            {/* Employer Contributions (Informational) */}
+            <div style={{ margin: '16px 32px 0', padding: '12px 24px', background: 'var(--gray-50)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Employer Contributions
+              </div>
+              <div style={{ display: 'flex', gap: 24, fontSize: 13 }}>
+                <div><span style={{ color: 'var(--text-tertiary)' }}>PF: </span><span style={{ fontWeight: 600 }}>{formatINR(editing ? (Number(edits.employer_pf) || 0) : payslip.employerContributions?.pf)}</span></div>
+                <div><span style={{ color: 'var(--text-tertiary)' }}>ESI: </span><span style={{ fontWeight: 600 }}>{formatINR(editing ? (Number(edits.employer_esic) || 0) : payslip.employerContributions?.esic)}</span></div>
+                <div><span style={{ color: 'var(--text-tertiary)' }}>Total: </span><span style={{ fontWeight: 700 }}>{formatINR(editing ? ((Number(edits.employer_pf) || 0) + (Number(edits.employer_esic) || 0)) : payslip.employerContributions?.total)}</span></div>
+              </div>
+            </div>
+
             {/* Footer */}
-            <div style={{ padding: '16px 32px', background: 'var(--gray-50)', borderRadius: '0 0 var(--radius-lg) var(--radius-lg)', fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center' }}>
+            <div style={{ padding: '16px 32px', background: 'var(--gray-50)', borderRadius: '0 0 var(--radius-lg) var(--radius-lg)', fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', marginTop: 16 }}>
               This is a computer-generated payslip and does not require a signature.
             </div>
           </div>
