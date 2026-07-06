@@ -323,20 +323,25 @@ export async function POST(request) {
           tdsDeduction = tdsResult.monthlyTds || 0;
         }
 
-        // Loan deductions
+        // Loan and Advance deductions
         let loanDeduction = 0;
+        let advanceDeduction = 0;
         const empLoans = loansMap[emp.id] || [];
         for (const loan of empLoans) {
           if (loan.balance_outstanding > 0) {
             const deduct = Math.min(loan.emi_amount, loan.balance_outstanding);
-            loanDeduction += deduct;
+            if (['Advance', 'Imprest Money', 'Festival Advance'].includes(loan.loan_type)) {
+              advanceDeduction += deduct;
+            } else {
+              loanDeduction += deduct;
+            }
           }
         }
 
         // LWF rolls into other_deductions for storage (no schema change).
         const otherDeductions = lwfEmployee;
 
-        const totalDeductions = pfDeduction + esicDeduction + ptDeduction + tdsDeduction + loanDeduction + otherDeductions;
+        const totalDeductions = pfDeduction + esicDeduction + ptDeduction + tdsDeduction + loanDeduction + advanceDeduction + otherDeductions;
         // CTC-inclusive: employer PF/ESIC are baked into gross, so subtract them from net.
         const netSalary = Math.max(grossEarnings - totalDeductions - employerPf - employerEsic, 0);
 
@@ -364,7 +369,7 @@ export async function POST(request) {
         `, [
           payrollId, emp.id, month, year, totalWorkingDays, paidDays,
           basic, hra, conv, petrol, med, spl, bonus, overtime, arrears, reimbursements, grossEarnings,
-          pfDeduction, esicDeduction, ptDeduction, tdsDeduction, loanDeduction, 0, otherDeductions, totalDeductions,
+          pfDeduction, esicDeduction, ptDeduction, tdsDeduction, loanDeduction, advanceDeduction, otherDeductions, totalDeductions,
           netSalary, employerPf, employerEsic, 'DRAFT'
         ]);
       }
@@ -413,11 +418,71 @@ export async function PUT(request) {
           [generateId(), companyId, 'PAYROLL_APPROVED', 'payroll', `${month}-${year}`, JSON.stringify({ month, year }), 'system']);
       } catch(e) { console.error('audit error:', e.message); }
     } else if (action === 'mark_paid') {
-      await pool.execute(`
-        UPDATE payroll SET status = 'PAID', paid_at = NOW(), updated_at = NOW()
-        WHERE month = ? AND year = ? AND status = 'APPROVED'
-        AND employee_id IN (SELECT id FROM employees WHERE company_id = ?)
-      `, [month, year, companyId]);
+      const conn = await pool.getConnection();
+      try {
+        await conn.beginTransaction();
+
+        // Get payrolls that are about to be marked as PAID
+        const [payrollsToPay] = await conn.execute(`
+          SELECT id, employee_id, loan_deduction, advance_deduction 
+          FROM payroll 
+          WHERE month = ? AND year = ? AND status = 'APPROVED'
+          AND employee_id IN (SELECT id FROM employees WHERE company_id = ?)
+        `, [month, year, companyId]);
+
+        for (const payroll of payrollsToPay) {
+          const lDed = Number(payroll.loan_deduction) || 0;
+          const aDed = Number(payroll.advance_deduction) || 0;
+          
+          if (lDed > 0 || aDed > 0) {
+             const [activeLoans] = await conn.execute(`
+               SELECT id, loan_type, balance_outstanding 
+               FROM loans 
+               WHERE employee_id = ? AND status = 'ACTIVE' 
+               ORDER BY start_date ASC
+             `, [payroll.employee_id]);
+
+             let remainingLoanDed = lDed;
+             let remainingAdvDed = aDed;
+
+             for (const loan of activeLoans) {
+               const isAdvance = ['Advance', 'Imprest Money', 'Festival Advance'].includes(loan.loan_type);
+               let deductAmount = 0;
+               
+               if (isAdvance && remainingAdvDed > 0) {
+                 deductAmount = Math.min(Number(loan.balance_outstanding), remainingAdvDed);
+                 remainingAdvDed -= deductAmount;
+               } else if (!isAdvance && remainingLoanDed > 0) {
+                 deductAmount = Math.min(Number(loan.balance_outstanding), remainingLoanDed);
+                 remainingLoanDed -= deductAmount;
+               }
+
+               if (deductAmount > 0) {
+                 await conn.execute(`
+                   UPDATE loans 
+                   SET balance_outstanding = balance_outstanding - ?, 
+                       paid_emis = paid_emis + 1,
+                       status = CASE WHEN balance_outstanding - ? <= 0 THEN 'CLOSED' ELSE 'ACTIVE' END
+                   WHERE id = ?
+                 `, [deductAmount, deductAmount, loan.id]);
+               }
+             }
+          }
+        }
+
+        await conn.execute(`
+          UPDATE payroll SET status = 'PAID', paid_at = NOW(), updated_at = NOW()
+          WHERE month = ? AND year = ? AND status = 'APPROVED'
+          AND employee_id IN (SELECT id FROM employees WHERE company_id = ?)
+        `, [month, year, companyId]);
+
+        await conn.commit();
+      } catch (err) {
+        await conn.rollback();
+        throw err;
+      } finally {
+        conn.release();
+      }
 
       try {
         await pool.execute(`INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by) VALUES (?, ?, ?, ?, ?, ?, ?)`,
