@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
+import { getSecureCompanyId } from '@/lib/authHelper';
 import { getPool, generateId } from '@/lib/db';
 
 export async function GET(request) {
   try {
     const pool = getPool();
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
 
     const [departments] = await pool.execute(
       'SELECT * FROM departments WHERE company_id = ? ORDER BY name ASC',
@@ -24,7 +25,7 @@ export async function POST(request) {
   try {
     const pool = getPool();
     const body = await request.json();
-    const companyId = body.company_id || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
 
     const name = (body.name || '').trim();
     const code = (body.code || '').trim().toUpperCase();

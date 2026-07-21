@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
+import { getSecureCompanyId } from '@/lib/authHelper';
 import { getPool, generateId } from '@/lib/db';
 
 export async function GET(request) {
   try {
     const pool = getPool();
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
     const employeeId = searchParams.get('employee_id');
 
     let query = `

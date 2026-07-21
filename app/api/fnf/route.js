@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getSecureCompanyId } from '@/lib/authHelper';
 import { getPool, generateId } from '@/lib/db';
 import { calculateGratuity } from '@/lib/compliance/gratuity';
 
@@ -6,7 +7,7 @@ export async function GET(request) {
   try {
     const pool = getPool();
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
 
     const [settlements] = await pool.execute(`
       SELECT f.*, e.full_name, e.employee_code, e.designation, e.joining_date,
@@ -130,7 +131,7 @@ export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const scope = searchParams.get('scope');
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
 
     if (id) {
       const [[s]] = await pool.execute('SELECT employee_id FROM fnf_settlements WHERE id = ?', [id]);

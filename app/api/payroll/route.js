@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getSecureCompanyId } from '@/lib/authHelper';
 import { getPool, generateId } from '@/lib/db';
 import { calculatePF } from '@/lib/compliance/pf';
 import { calculateESIC } from '@/lib/compliance/esic';
@@ -10,7 +11,7 @@ export async function GET(request) {
   try {
     const pool = getPool();
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
     const month = parseInt(searchParams.get('month')) || new Date().getMonth() + 1;
     const year = parseInt(searchParams.get('year')) || new Date().getFullYear();
 
@@ -73,7 +74,7 @@ export async function POST(request) {
     const pool = getPool();
     const body = await request.json();
     const { company_id, month, year } = body;
-    const companyId = company_id || '';
+    const companyId = await getSecureCompanyId(request);
 
     // Get all active employees with salary structures
     const [employees] = await pool.execute(`
@@ -404,7 +405,7 @@ export async function PUT(request) {
     const pool = getPool();
     const body = await request.json();
     const { action, month, year, company_id } = body;
-    const companyId = company_id || '';
+    const companyId = await getSecureCompanyId(request);
 
     if (action === 'approve') {
       await pool.execute(`
@@ -505,7 +506,7 @@ export async function DELETE(request) {
     const { searchParams } = new URL(request.url);
     const month = parseInt(searchParams.get('month'));
     const year = parseInt(searchParams.get('year'));
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
     const scope = searchParams.get('scope') || 'draft';
 
     if (!month || !year) {

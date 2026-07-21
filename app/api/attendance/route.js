@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
+import { getSecureCompanyId } from '@/lib/authHelper';
 import { getPool, generateId } from '@/lib/db';
 
 export async function GET(request) {
   try {
     const pool = getPool();
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
     const month = parseInt(searchParams.get('month')) || new Date().getMonth() + 1;
     const year = parseInt(searchParams.get('year')) || new Date().getFullYear();
 
@@ -105,7 +106,7 @@ export async function DELETE(request) {
     const id = searchParams.get('id');
     const month = parseInt(searchParams.get('month'));
     const year = parseInt(searchParams.get('year'));
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
 
     if (id) {
       // Delete single record

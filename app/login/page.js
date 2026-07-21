@@ -7,6 +7,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [tenantCode, setTenantCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -18,7 +19,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, tenantCode }),
       });
       
       const data = await res.json();
@@ -49,6 +50,14 @@ export default function LoginPage() {
         {error && <div className="alert alert-danger" style={{ marginBottom: 20 }}>⚠️ {error}</div>}
 
         <form onSubmit={handleLogin}>
+          <div className="form-group">
+            <label className="form-label">Tenant Code</label>
+            <input 
+              type="text" className="form-input" 
+              value={tenantCode} onChange={e => setTenantCode(e.target.value)} 
+              placeholder="e.g. COMP01 (or ADMIN for Super Admins)" required 
+            />
+          </div>
           <div className="form-group">
             <label className="form-label">Email Address</label>
             <input 

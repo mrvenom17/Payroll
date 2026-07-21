@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getSecureCompanyId } from '@/lib/authHelper';
 import { getPool, generateId } from '@/lib/db';
 
 // GET — list payments for a payroll period
@@ -6,7 +7,7 @@ export async function GET(request) {
   try {
     const pool = getPool();
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
     const month = parseInt(searchParams.get('month'));
     const year = parseInt(searchParams.get('year'));
 
@@ -39,7 +40,7 @@ export async function POST(request) {
     const pool = getPool();
     const body = await request.json();
     const { month, year, company_id, payments } = body;
-    const companyId = company_id || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
 
     if (!Array.isArray(payments) || payments.length === 0) {
       return NextResponse.json({ error: 'payments array required' }, { status: 400 });

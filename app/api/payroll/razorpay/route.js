@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
+import { getSecureCompanyId } from '@/lib/authHelper';
 import { getPool, generateId } from '@/lib/db';
 import crypto from 'crypto';
 
 export async function POST(request) {
   try {
-    const { month, year, company = '' } = await request.json();
+    const { month, year } = await request.json();
+    const company = await getSecureCompanyId(request);
     const pool = getPool();
 
     // Verify keys

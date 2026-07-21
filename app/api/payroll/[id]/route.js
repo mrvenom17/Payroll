@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
+import { getSecureCompanyId } from '@/lib/authHelper';
 import { getPool } from '@/lib/db';
 
 export async function PUT(request, { params }) {
   try {
     const pool = getPool();
+    const companyId = await getSecureCompanyId(request);
     const { id } = await params;
     const body = await request.json();
     
@@ -32,10 +34,14 @@ export async function PUT(request, { params }) {
     } = body;
 
     // Fetch the current record
-    const [[record]] = await pool.execute(`SELECT * FROM payroll WHERE id = ?`, [id]);
+    const [[record]] = await pool.execute(`
+      SELECT p.*, e.company_id 
+      FROM payroll p 
+      JOIN employees e ON e.id = p.employee_id 
+      WHERE p.id = ?`, [id]);
     
-    if (!record) {
-      return NextResponse.json({ error: 'Payroll record not found' }, { status: 404 });
+    if (!record || record.company_id !== companyId) {
+      return NextResponse.json({ error: 'Payroll record not found or unauthorized' }, { status: 404 });
     }
 
     const safeNumber = (val, fallback) => {

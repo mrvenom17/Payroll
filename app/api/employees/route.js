@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
+import { getSecureCompanyId } from '@/lib/authHelper';
 import { getPool, generateId } from '@/lib/db';
 
 export async function GET(request) {
   try {
     const pool = getPool();
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || 'all';
     const department = searchParams.get('department') || '';
@@ -56,7 +57,7 @@ export async function POST(request) {
     const body = await request.json();
 
     // Generate employee code
-    const companyId = body.company_id || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
     const [[company]] = await pool.execute('SELECT code FROM companies WHERE id = ?', [companyId]);
     const [[lastEmp]] = await pool.execute(
       "SELECT employee_code FROM employees WHERE company_id = ? ORDER BY employee_code DESC LIMIT 1",

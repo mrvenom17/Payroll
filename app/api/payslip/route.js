@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { getSecureCompanyId } from '@/lib/authHelper';
 import { getPool } from '@/lib/db';
 
 // Payslip API — generate payslip data for a specific employee and month
@@ -6,7 +7,7 @@ export async function GET(request) {
   try {
     const pool = getPool();
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
     const employeeId = searchParams.get('employee');
     const month = parseInt(searchParams.get('month') || new Date().getMonth() + 1);
     const year = parseInt(searchParams.get('year') || new Date().getFullYear());

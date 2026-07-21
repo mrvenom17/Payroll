@@ -1,13 +1,25 @@
 import { NextResponse } from 'next/server';
+import { getSecureCompanyId } from '@/lib/authHelper';
+import { verifySessionToken } from '@/lib/auth';
 import { getPool, generateId } from '@/lib/db';
 
 const CODE_RE = /^[A-Z0-9_-]{2,50}$/;
 
-export async function GET() {
+export async function GET(request) {
   try {
     const pool = getPool();
-    const [companies] = await pool.execute('SELECT * FROM companies ORDER BY created_at ASC');
-    return NextResponse.json({ companies });
+    const token = request.cookies.get('auth_session')?.value;
+    const session = await verifySessionToken(token);
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    if (session.role === 'super_admin') {
+      const [companies] = await pool.execute('SELECT * FROM companies ORDER BY created_at ASC');
+      return NextResponse.json({ companies });
+    } else {
+      const companyId = await getSecureCompanyId(request);
+      const [companies] = await pool.execute('SELECT * FROM companies WHERE id = ?', [companyId]);
+      return NextResponse.json({ companies });
+    }
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -15,6 +27,12 @@ export async function GET() {
 
 export async function POST(request) {
   try {
+    const token = request.cookies.get('auth_session')?.value;
+    const session = await verifySessionToken(token);
+    if (!session || session.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Unauthorized. Only Super Admins can create companies.' }, { status: 403 });
+    }
+
     const data = await request.json();
     const pool = getPool();
 
@@ -50,6 +68,12 @@ export async function POST(request) {
 
 export async function PUT(request) {
   try {
+    const token = request.cookies.get('auth_session')?.value;
+    const session = await verifySessionToken(token);
+    if (!session || session.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Unauthorized. Only Super Admins can edit companies.' }, { status: 403 });
+    }
+
     const pool = getPool();
     const data = await request.json();
     const { id } = data;
@@ -104,6 +128,12 @@ export async function PUT(request) {
 
 export async function DELETE(request) {
   try {
+    const token = request.cookies.get('auth_session')?.value;
+    const session = await verifySessionToken(token);
+    if (!session || session.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Unauthorized. Only Super Admins can delete companies.' }, { status: 403 });
+    }
+
     const pool = getPool();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');

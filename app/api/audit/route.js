@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
+import { getSecureCompanyId } from '@/lib/authHelper';
 import { getPool, generateId } from '@/lib/db';
 
 export async function GET(request) {
   try {
     const pool = getPool();
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('company') || request?.cookies?.get('active_company')?.value || '';
+    const companyId = await getSecureCompanyId(request);
     const limit = parseInt(searchParams.get('limit') || '50');
     const action = searchParams.get('action') || '';
 
@@ -44,7 +45,7 @@ export async function POST(request) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       id,
-      body.company_id || request?.cookies?.get('active_company')?.value || '',
+      await getSecureCompanyId(request),
       body.action,
       body.entity_type,
       body.entity_id || null,
