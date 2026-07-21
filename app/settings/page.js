@@ -19,6 +19,7 @@ export default function SettingsPage() {
     template_conv_amount: 1600,
     template_petrol_amount: 0,
     template_med_amount: 1250,
+    audit_log_retention_days: 7,
   });
   const [editingTemplate, setEditingTemplate] = useState(false);
 
@@ -118,7 +119,7 @@ export default function SettingsPage() {
     { id: 'payroll', label: 'Payroll Config', icon: '⚙️' },
     { id: 'payments', label: 'Payments & Banking', icon: '💳' },
     { id: 'leave', label: 'Leave Policy', icon: '📋' },
-    { id: 'integrations', label: 'Integrations & API', icon: '🔌' },
+    { id: 'integrations', label: 'Integrations & Security', icon: '🛡️' },
   ];
 
   if (!company) return <div className="page-loader"><div className="spinner"></div></div>;
@@ -487,10 +488,10 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Integrations Tab */}
+      {/* Integrations & Security Tab */}
       {activeTab === 'integrations' && (
         <div className="card animate-fade-in">
-          <div className="card-header"><span className="card-title">🔌 Integrations & API Settings</span></div>
+          <div className="card-header"><span className="card-title">🛡️ Integrations & Security Settings</span></div>
           <div className="card-body">
             <div className="alert alert-warning" style={{ marginBottom: 24, fontSize: 13 }}>
               <strong>Security Notice:</strong> The credentials stored below are used to automate core services. Do not share your Razorpay Live Secret keys. Since this app runs locally, they are stored securely on your machine's database.
@@ -535,6 +536,23 @@ export default function SettingsPage() {
               <div className="form-group">
                 <label className="form-label">API Key</label>
                 <input type="password" className="form-input" placeholder="••••••••" />
+              </div>
+            </div>
+            
+            <hr style={{ margin: '24px 0', border: 'none', borderTop: '2px solid var(--gray-100)' }} />
+            
+            <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Security & Audit Logs</h4>
+            <div className="form-row">
+              <div className="form-group" style={{ maxWidth: 300 }}>
+                <label className="form-label">Audit Log Retention (Days)</label>
+                <input 
+                  type="number" 
+                  className="form-input" 
+                  min={1} 
+                  value={integrations.audit_log_retention_days || 7} 
+                  onChange={e => setIntegrations(p => ({ ...p, audit_log_retention_days: parseInt(e.target.value) || 7 }))} 
+                />
+                <span className="form-hint">Logs older than this threshold are automatically purged.</span>
               </div>
             </div>
           </div>

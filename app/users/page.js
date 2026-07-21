@@ -17,21 +17,28 @@ export default function UsersPage() {
   const toast = useToast();
   const confirm = useConfirm();
   const [users, setUsers] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ full_name: '', email: '', password: '', role: 'admin' });
+  const [form, setForm] = useState({ full_name: '', email: '', password: '', role: 'admin', company_id: '' });
   const [saving, setSaving] = useState(false);
   const [resetId, setResetId] = useState(null);
   const [newPassword, setNewPassword] = useState('');
 
-  const loadUsers = () => {
-    fetch('/api/users')
-      .then(r => r.json())
-      .then(d => { setUsers(d.users || []); setLoading(false); })
-      .catch(() => setLoading(false));
+  const loadData = () => {
+    Promise.all([
+      fetch('/api/users').then(r => r.json()),
+      fetch('/api/companies').then(r => r.json())
+    ])
+    .then(([uData, cData]) => { 
+      setUsers(uData.users || []); 
+      setCompanies(cData.companies || []);
+      setLoading(false); 
+    })
+    .catch(() => setLoading(false));
   };
 
-  useEffect(loadUsers, []);
+  useEffect(loadData, []);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -48,8 +55,8 @@ export default function UsersPage() {
       if (res.ok) {
         toast.success('User created successfully');
         setShowForm(false);
-        setForm({ full_name: '', email: '', password: '', role: 'admin' });
-        loadUsers();
+        setForm({ full_name: '', email: '', password: '', role: 'admin', company_id: '' });
+        loadData();
       } else {
         toast.error(d.error || 'Failed to create user');
       }
@@ -76,7 +83,7 @@ export default function UsersPage() {
     });
     if (res.ok) {
       toast.success(`User ${action}d`);
-      loadUsers();
+      loadData();
     } else {
       toast.error('Failed to update user');
     }
@@ -90,7 +97,19 @@ export default function UsersPage() {
     });
     if (res.ok) {
       toast.success('Role updated');
-      loadUsers();
+      loadData();
+    }
+  };
+
+  const changeCompany = async (userId, companyId) => {
+    const res = await fetch('/api/users', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: userId, company_id: companyId || null }),
+    });
+    if (res.ok) {
+      toast.success('Company updated');
+      loadData();
     }
   };
 
@@ -168,6 +187,15 @@ export default function UsersPage() {
                   </select>
                 </div>
               </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Company</label>
+                  <select className="form-select" value={form.company_id} onChange={e => setForm(p => ({ ...p, company_id: e.target.value }))}>
+                    <option value="">-- No Company (Unlinked) --</option>
+                    {companies.map(c => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
+                  </select>
+                </div>
+              </div>
               <button type="submit" className="btn btn-success" disabled={saving}>
                 {saving ? '⏳ Creating...' : '✅ Create User'}
               </button>
@@ -190,6 +218,7 @@ export default function UsersPage() {
                 <thead>
                   <tr>
                     <th>User</th>
+                    <th>Company</th>
                     <th>Role</th>
                     <th>Status</th>
                     <th>Last Login</th>
@@ -205,6 +234,17 @@ export default function UsersPage() {
                         <td>
                           <div style={{ fontWeight: 600 }}>{user.full_name}</div>
                           <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{user.email}</div>
+                        </td>
+                        <td>
+                          <select
+                            className="form-select"
+                            value={user.company_id || ''}
+                            onChange={e => changeCompany(user.id, e.target.value)}
+                            style={{ width: 140, fontSize: 12, padding: '4px 8px' }}
+                          >
+                            <option value="">Unlinked</option>
+                            {companies.map(c => <option key={c.id} value={c.id}>{c.code}</option>)}
+                          </select>
                         </td>
                         <td>
                           <select

@@ -11,9 +11,9 @@ export async function GET(request) {
     const action = searchParams.get('action') || '';
 
     let query = `
-      SELECT al.*, e.full_name as performed_by_name
+      SELECT al.*, u.full_name as performed_by_name
       FROM audit_logs al
-      LEFT JOIN employees e ON al.performed_by = e.id
+      LEFT JOIN users u ON al.performed_by = u.id
       WHERE al.company_id = ?
     `;
     const params = [companyId];
@@ -40,6 +40,17 @@ export async function POST(request) {
     const body = await request.json();
 
     const id = generateId();
+    
+    // Opportunistic purge
+    try {
+      const [[setting]] = await pool.execute("SELECT setting_value FROM system_settings WHERE setting_key = 'audit_log_retention_days'");
+      const days = parseInt(setting?.setting_value || '7');
+      if (days > 0) {
+        await pool.execute(`DELETE FROM audit_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)`, [days]);
+      }
+    } catch (e) {
+      console.error('Audit purge error:', e);
+    }
     await pool.execute(`
       INSERT INTO audit_logs (id, company_id, action, entity_type, entity_id, details, performed_by, ip_address)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -49,7 +60,7 @@ export async function POST(request) {
       body.action,
       body.entity_type,
       body.entity_id || null,
-      body.details ? JSON.stringify(body.details) : null,
+      body.details ? JSON.stringify({ ...body.details, is_auto_log: body.is_auto_log }) : (body.is_auto_log ? JSON.stringify({ is_auto_log: true }) : null),
       body.performed_by || 'system',
       body.ip_address || null,
     ]);

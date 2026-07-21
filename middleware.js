@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifySessionToken } from '@/lib/auth';
 
-export async function middleware(request) {
+export async function middleware(request, event) {
   const path = request.nextUrl.pathname;
 
   // Public paths
@@ -20,6 +20,37 @@ export async function middleware(request) {
     const res = NextResponse.redirect(url);
     if (token) res.cookies.delete('auth_session'); // clear forged / stale token
     return res;
+  }
+
+  if (session && path.startsWith('/api/') && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+    // Avoid logging the audit endpoint itself to prevent loops/spam
+    if (path !== '/api/audit') {
+      const logAudit = async () => {
+        try {
+          await fetch(new URL('/api/audit', request.url).toString(), {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              'Cookie': request.headers.get('cookie') || ''
+            },
+            body: JSON.stringify({
+              action: `API_${request.method}`,
+              entity_type: path.replace('/api/', '').split('/')[0],
+              details: { path, method: request.method },
+              performed_by: session.id,
+              is_auto_log: true
+            })
+          });
+        } catch (e) {
+          console.error('Audit log failed', e);
+        }
+      };
+      if (event && event.waitUntil) {
+        event.waitUntil(logAudit());
+      } else {
+        logAudit().catch(() => {});
+      }
+    }
   }
 
   return NextResponse.next();
