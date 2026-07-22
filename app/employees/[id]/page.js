@@ -36,8 +36,9 @@ export default function EmployeeDetailPage({ params }) {
   const [uploading, setUploading] = useState(false);
   const [showStructureModal, setShowStructureModal] = useState(false);
   const [allComponents, setAllComponents] = useState([]);
-  const [structForm, setStructForm] = useState({ effective_from: '', amounts: {} });
+  const [structForm, setStructForm] = useState({ effective_from: '', amounts: {}, ctc_annual: '' });
   const [savingStruct, setSavingStruct] = useState(false);
+  const [autoBreaking, setAutoBreaking] = useState(false);
   const [payrollHistory, setPayrollHistory] = useState([]);
   const [salaryRevisions, setSalaryRevisions] = useState([]);
 
@@ -124,8 +125,35 @@ export default function EmployeeDetailPage({ params }) {
     setStructForm({
       effective_from: data.salaryStructure?.effective_from || new Date().toISOString().split('T')[0],
       amounts,
+      ctc_annual: data.salaryStructure?.ctc_annual || '',
     });
     setShowStructureModal(true);
+  };
+
+  // Split the entered CTC into components using the company template, so the CTC
+  // can be set/edited without hand-entering every component.
+  const autoBreakdown = async () => {
+    const ctc = Number(structForm.ctc_annual) || 0;
+    if (ctc <= 0) {
+      toast.error('Enter an annual CTC first');
+      return;
+    }
+    setAutoBreaking(true);
+    try {
+      const res = await fetch(`/api/salary-structures/preview-breakdown?ctc_annual=${ctc}`);
+      const d = await res.json();
+      if (!res.ok) {
+        toast.error(d.error || 'Could not compute breakdown');
+      } else {
+        const amounts = {};
+        (d.components || []).forEach(c => { amounts[c.code] = c.monthly; });
+        setStructForm(p => ({ ...p, amounts }));
+        toast.success('CTC broken down — review and save');
+      }
+    } catch {
+      toast.error('Network error');
+    }
+    setAutoBreaking(false);
   };
 
   const saveStructure = async () => {
@@ -733,12 +761,39 @@ export default function EmployeeDetailPage({ params }) {
             </div>
             <div className="modal-body">
               <div className="alert alert-info" style={{ marginBottom: 16, fontSize: 13 }}>
-                Set monthly amounts per earning component. CTC auto-computes as monthly total × 12. Statutory deductions (PF/ESI/PT/TDS) are calculated automatically at payroll run.
+                Enter the annual CTC and click <strong>Auto Break-down</strong> to split it from the company template — or set monthly amounts per component by hand. CTC saves as the monthly total × 12. Statutory deductions (PF/ESI/PT/TDS) are calculated automatically at payroll run.
               </div>
 
               <div className="form-group">
                 <label className="form-label">Effective From</label>
                 <input type="date" className="form-input" value={structForm.effective_from} onChange={e => setStructForm(p => ({ ...p, effective_from: e.target.value }))} style={{ maxWidth: 220 }} />
+              </div>
+
+              {/* Set / edit CTC first, then auto-split it into components */}
+              <div className="form-group" style={{ background: 'var(--bg-secondary)', padding: 14, borderRadius: 8, border: '1px solid var(--border-light)' }}>
+                <label className="form-label">Annual CTC (₹){!salary && <span style={{ color: 'var(--danger)' }}> — not set yet</span>}</label>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="number"
+                    className="form-input"
+                    style={{ maxWidth: 200, textAlign: 'right' }}
+                    placeholder="e.g. 600000"
+                    min={0}
+                    value={structForm.ctc_annual}
+                    onChange={e => setStructForm(p => ({ ...p, ctc_annual: e.target.value }))}
+                  />
+                  <button type="button" className="btn btn-primary" onClick={autoBreakdown} disabled={autoBreaking}>
+                    {autoBreaking ? '⏳ Splitting…' : '⚡ Auto Break-down'}
+                  </button>
+                  {Number(structForm.ctc_annual) > 0 && (
+                    <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
+                      ≈ {formatCurrency(Math.round(Number(structForm.ctc_annual) / 12))}/mo
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>
+                  Splits into Basic / HRA / allowances from the company template. Fine-tune the amounts below before saving.
+                </div>
               </div>
 
               <table>
