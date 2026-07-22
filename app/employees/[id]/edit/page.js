@@ -10,20 +10,25 @@ export default function EditEmployeePage({ params }) {
   const router = useRouter();
   const toast = useToast();
   const [departments, setDepartments] = useState([]);
+  const [designations, setDesignations] = useState(PRESET_DESIGNATIONS);
   const [managers, setManagers] = useState([]);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState({});
 
   useEffect(() => {
+    const company = localStorage.getItem('active_company') || '';
     Promise.all([
       fetch(`/api/employees/${id}`).then(r => r.json()),
-      fetch(`/api/departments?company=${localStorage.getItem('active_company') || ''}`).then(r => r.json()),
-      fetch(`/api/employees?company=${localStorage.getItem('active_company') || ''}&status=active`).then(r => r.json()),
-    ]).then(([empData, deptData, mgrData]) => {
+      fetch(`/api/departments?company=${company}`).then(r => r.json()),
+      fetch(`/api/employees?company=${company}&status=active`).then(r => r.json()),
+      fetch(`/api/designations?company=${company}`).then(r => r.json()),
+    ]).then(([empData, deptData, mgrData, desigData]) => {
       setForm(empData.employee || {});
       setDepartments(deptData.departments || []);
       setManagers((mgrData.employees || []).filter(e => e.id !== id));
+      const names = (desigData.designations || []).map(d => d.name);
+      if (names.length) setDesignations(names);
       setLoading(false);
     });
   }, [id]);
@@ -134,7 +139,7 @@ export default function EditEmployeePage({ params }) {
                   onChange={e => updateField('designation', e.target.value)}
                 />
                 <datalist id="preset-designations-edit">
-                  {PRESET_DESIGNATIONS.map(d => <option key={d} value={d} />)}
+                  {designations.map(d => <option key={d} value={d} />)}
                 </datalist>
               </div>
               <div className="form-group">

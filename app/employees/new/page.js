@@ -9,6 +9,7 @@ export default function NewEmployeePage() {
   const router = useRouter();
   const toast = useToast();
   const [departments, setDepartments] = useState([]);
+  const [designations, setDesignations] = useState(PRESET_DESIGNATIONS);
   const [managers, setManagers] = useState([]);
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState(1);
@@ -61,9 +62,12 @@ export default function NewEmployeePage() {
     Promise.all([
       fetch(`/api/departments?company=${company}`).then(r => r.json()),
       fetch(`/api/employees?company=${company}&status=active`).then(r => r.json()),
-    ]).then(([deptData, mgrData]) => {
+      fetch(`/api/designations?company=${company}`).then(r => r.json()),
+    ]).then(([deptData, mgrData, desigData]) => {
       setDepartments(deptData.departments || []);
       setManagers(mgrData.employees || []);
+      const names = (desigData.designations || []).map(d => d.name);
+      if (names.length) setDesignations(names);
     });
   }, []);
 
@@ -264,7 +268,7 @@ export default function NewEmployeePage() {
                     required
                   />
                   <datalist id="preset-designations">
-                    {PRESET_DESIGNATIONS.map(d => <option key={d} value={d} />)}
+                    {designations.map(d => <option key={d} value={d} />)}
                   </datalist>
                 </div>
               </div>

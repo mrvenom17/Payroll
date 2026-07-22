@@ -66,6 +66,16 @@ CREATE TABLE IF NOT EXISTS departments (
   UNIQUE KEY uq_dept_company_code (company_id, code)
 ) ENGINE=InnoDB;
 
+-- ---- Designations (per-company master) ---------------------
+CREATE TABLE IF NOT EXISTS designations (
+  id          VARCHAR(36) PRIMARY KEY,
+  company_id  VARCHAR(36) NOT NULL,
+  name        VARCHAR(255) NOT NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE CASCADE,
+  UNIQUE KEY uq_desig_company_name (company_id, name)
+) ENGINE=InnoDB;
+
 -- ---- Employees ---------------------------------------------
 CREATE TABLE IF NOT EXISTS employees (
   id                      VARCHAR(36) PRIMARY KEY,
