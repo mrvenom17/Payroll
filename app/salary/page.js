@@ -38,6 +38,9 @@ export default function SalaryPage() {
           <h1 className="page-title">Salaries</h1>
           <p className="page-subtitle">Employee salary structures and CTC breakdown</p>
         </div>
+        <Link href="/salary/auto-breakdown" className="btn btn-primary" title="Recalculate the statutory split for employees whose salary was never broken down">
+          ⚙️ Auto-Breakdown Salaries
+        </Link>
       </div>
 
       {/* Salary Summary Cards */}
